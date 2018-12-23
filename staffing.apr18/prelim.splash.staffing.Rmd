@@ -1,0 +1,564 @@
+---
+title: "Splash Staffing Analysis"
+author: "Allocate Analytics"
+date: "April 10, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#SPLASH
+# next step is try to look for trends
+# are there staffing changes to be made or will it always be same #
+
+library(dplyr)
+library(ggplot2)
+library(sugrrants)
+library(lubridate)
+library(knitr)
+library(scales)
+library(gridExtra)
+
+data4years <- read.csv("mutated.data1417.csv", stringsAsFactors = FALSE)
+data4years <- filter(data4years, Register == "9")
+
+data4years.wide <- data4years
+data4years.wide$Date.Sold <- as_datetime(data4years.wide$Date.Sold)
+data4years.wide$Date.Sold.Round <- floor_date(data4years.wide$Date.Sold, unit = "hour")
+data4years.wide$Date.Sold <- as_date(data4years.wide$Date.Sold)
+
+data17 <- filter(data4years.wide, Year == 2017)
+
+data17.agg <- aggregate(Total.Sales ~ Date.Sold.Round + Date.Sold, data17, sum)
+data17.agg <- data17.agg %>%
+  mutate("Hour" = as.integer(hour(Date.Sold.Round))) %>%
+  frame_calendar(x = Hour, y = Total.Sales, date = Date.Sold, calendar = "monthly")
+data17.plot <- data17.agg %>%
+  ggplot(aes(x = .Hour, y = .Total.Sales, group = Date.Sold)) + geom_line()
+
+```
+
+#### Question To Answer: How can sales data help inform staffing levels through the day through each month of the year?
+
+#### Approach To Answer Question:
+
+1. Visualize 2017 sales by hour for each day of the year in order to see trends (also visualize 2016 to confirm it's fairly similar to 2017)
+
+2. Group together similar days into a number of "sales profiles" for consistency and simplicity.
+
+3. Plot the range of sales that happen through the day for each of the 10 profiles.
+
+## Sales By Hour For Each Day of 2017
+
+```{r calendar.17.plot, echo=FALSE}
+#print(unique(data4years$Register))
+prettify(data17.plot)
+```
+
+## Comments and Trends
+
+1 Almost no big days until 2nd weekend of April and then it's Fri, Sat, Sun
+
+2 Weekdays start getting consistently big after Memorial Day
+
+3 Weekdays slow down after Labor Day
+
+4 October weekdays even slower than September
+
+5 Beginning around Halloween Saturday is really the main big weekend day until the week before Xmas and except for Thanksgiving weekend
+
+## Sales By Hour For Each Day of 2016
+
+```{r calendar.16.plot, echo=FALSE}
+data16 <- filter(data4years.wide, Year == 2016)
+
+data16.agg <- aggregate(Total.Sales ~ Date.Sold.Round + Date.Sold, data16, sum)
+data16.agg <- data16.agg %>%
+  mutate("Hour" = as.integer(hour(Date.Sold.Round))) %>%
+  frame_calendar(x = Hour, y = Total.Sales, date = Date.Sold, calendar = "monthly")
+data16.plot <- data16.agg %>%
+  ggplot(aes(x = .Hour, y = .Total.Sales, group = Date.Sold)) + geom_line()
+prettify(data16.plot)
+
+```
+
+
+```{r off.peak.minimum, echo=FALSE}
+
+data2years.wide <- filter(data4years.wide, Year %in% c(2016, 2017))
+
+#data2years$Date.Sold <- as_date(data2years$Date.Sold)
+
+data2years.wide <- data2years.wide %>%
+  mutate("Hour" = hour(Date.Sold.Round)) %>%
+  mutate("Weekday" = wday((Date.Sold.Round)))
+    
+# filter for off.peak.minimum ##
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-01-01", Date.Sold <= "2016-01-31")
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-02-01", Date.Sold <= "2016-04-07", Weekday %in% c(1, 2, 3, 4, 5, 7))
+
+df.all <- rbind(df1, df2)
+
+staffing.day.plot.dots <- function(df, nickname.of.time.range){
+  
+  library(lubridate)
+  library(dplyr)
+  library(ggplot2)
+  
+  df.agg <- aggregate(Total.Sales ~ Date.Sold.Round + Hour + Weekday, df.all, sum)
+  conf.df <- data.frame()
+  
+  for(i in 9:23){
+    #print(i)
+    i.hour.vec <- df.agg %>%
+      filter(Hour == i) %>%
+      select(Total.Sales)
+    #i.hour.vec <- as.double(i.hour.vec)
+    #print(head(i.hour.vec))
+    #i.estimate.95 <- t.test(i.hour.vec, conf.level = 0.95)$estimate
+    #i.conf.int.95 <- t.test(i.hour.vec, conf.level = 0.95)$conf.int
+    #i.conf.int.75 <- t.test(i.hour.vec, conf.level = 0.75)$conf.int
+    #i.conf.int.50 <- t.test(i.hour.vec, conf.level = 0.50)$conf.int
+    #three.conf.int <- c(i, i.estimate.95, i.conf.int.95, i.conf.int.75, i.conf.int.50)
+    quantiles <- quantile(as.numeric(unlist(i.hour.vec)), probs = c(.5, .025, .975, .125, .875, .25, .75))
+    #print(class(quantiles))
+    
+    quantiles.hour <- c(i, quantiles)
+    #print(class(quantiles.hour))
+    conf.df <- rbind(conf.df, quantiles.hour)
+    
+    #i.estimate.95 <- quantie(i.hour.vec, .5)
+    #i.conf.int.95.high <- 
+    #quantiles.hour <- c(i, quantile(i.hour.vec, c(.5, .025, .975, .125, .875, .25, .75)))
+  }
+  colnames(conf.df) <- c("hour", "estimate", "low95", "high95", "low75", "high75", "low50", "high50")
+  
+  # add column corresponding to # of staff needed based on $400 -> 2, $600 -> 3, etc
+  conf.df$staff.estimate <- (round(conf.df$high50/200))
+  
+  lbls = paste0(as.character(c(seq(9, 12, 1), seq(1, 11, 1))), c(rep("am", 3), rep("pm", 11)))
+  brks <- seq(9,23, 1)
+  
+  lbls.y = paste0("$", seq(0, 2000, 200))
+  brks.y = seq(0, 2000, 200)
+  brks.y2 = seq(0,8,1)
+  
+  day.plot <- ggplot(data = conf.df, aes(x=hour)) +
+    geom_ribbon(aes(ymin=low95, ymax=high95), fill="#0571b0", alpha = .75)+
+    geom_ribbon(aes(ymin=low75, ymax=high75), fill="#92c5de", alpha = .75)+
+    geom_ribbon(aes(ymin=low50, ymax=high50), fill="#d1e5f0", alpha = .75)+
+    geom_ribbon(aes(ymin=estimate-5, ymax=estimate+5), fill="#ef8a62") +
+    geom_point(aes(y=staff.estimate*200), color="#FFFF33", size = 10) +
+    geom_text(aes(y = staff.estimate*200, label = staff.estimate), color = "black", size = 5, fontface = "bold")
+  day.plot <- day.plot + scale_x_continuous(labels = lbls, breaks = brks) + 
+    scale_y_continuous(sec.axis = sec_axis(~./200, name = "Estimate of Hourly Staff Need", breaks = brks.y2), labels = lbls.y, breaks = brks.y, name = "Range of Hourly Sales") #+ ylim(0,2000)
+  #print(head(conf.df, 15))
+  print(day.plot)
+}
+```
+
+## Profiles of Sales For Staffing
+
+!["Days of 2017 sorted into 10 profiles for staffing"](day.sorting.staffing.png)
+
+\newpage
+
+# Sales Ranges of Profiles
+
+The next 10 plots show the range of sales that have occurred for each hour of the day.  The darkest, largest blue range represents where sales occur that hour 95% of the time.  The next slightly lighter blue range represents where hourly sales will fall 75%.  The smallest, lightest blue contains hourly sales 50% of the time.  The red ribbon is the average sales level for that hour.
+
+My initial recommendation is to aim for the top of the 50% range (the lightest blue range, corresponding to about $400 for 12 noon for the first profile).  Since the store being fully staffed as 6 people and the minimum is 2, that informs the staffing levels.  The highest the 50% range gets in mid-July is about $1200/hr and the lowest is roughly $400/hr.  This translates to the table below:
+
+##### Approximate Staffing Needs At Hourly Sales Levels
+
+```{r staffing.kable, echo=FALSE}
+
+staffing.table <- data.frame("Sales Per Hour" = c("$400", "$600", "$800", "$1000", "$1200"), "Staff Needed" = c(2, 3, 4, 5, 6))
+
+kable(staffing.table)
+```
+
+Below are the plots of each profile:
+
+## #1 Off Peak Minimum Staffing - Dark Grey
+
+This first one represents all the very low sales days, and the demands of customers and sales are unlikely to require more than 2 staff at any one time.
+
+```{r Off.Peak.Min, echo=FALSE, warning=FALSE, message=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-01-01", Date.Sold <= "2016-01-31")
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-01-01", Date.Sold <= "2017-01-31")
+
+df3 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-02-01", Date.Sold <= "2016-03-31", Weekday %in% c(1, 2, 3, 4, 5, 7))
+df4 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-02-01", Date.Sold <= "2017-03-31", Weekday %in% c(1, 2, 3, 4, 5, 7))
+
+df5 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-04-04", Date.Sold <= "2016-04-28", Weekday %in% c(1, 2, 3, 4))
+df6 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-04-03", Date.Sold <= "2017-04-27", Weekday %in% c(1, 2, 3, 4))
+
+df7 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-11-01", Date.Sold <= "2016-11-30", Weekday %in% c(1, 2, 3, 4))
+df8 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-11-01", Date.Sold <= "2017-11-30", Weekday %in% c(1, 2, 3, 4))
+
+df.all <- rbind(df1, df2, df3, df4, df5, df6, df7, df8)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #1 Off Peak Minimum Staffing
+
+
+```{r, echo=FALSE, fig.height=10}
+
+staffing.day.plot.dept2.loop <- function(profile.df, palette.color = "green.palette"){
+  
+  depts.for.plots <- c("JEWELRY", "GENERAL MERCHANDISE","TOYS", 
+                       "COUNTER CARD", "BOOKS", "BATH/ACCESSORIES", 
+                       "PAPER GOODS", "ORNAMENTS", "SHELLS")
+  
+  staffing.day.plot.dept2 <- function(df, nickname.of.time.range, palette.color = "green.palette"){
+    
+    green.palette <- c("#238b45", "#74c476", "#bae4b3")
+    red.palette <- c("#cb181d", "#fb6a4a", "#fcae91")
+    purple.palette <- c("#6a51a3", "#9e9ac8", "#cbc9e2")
+    orange.palette <- c("#d94701", "#fd8d3c", "#fdbe85")
+    lavender.palette <- c("#ae017e", "#f768a1", "#fbb4b9")
+    
+    if(palette.color == "green.palette"){
+      dark.color = green.palette[1]
+      medium.color = green.palette[2]
+      light.color = green.palette[3]
+    }else if(palette.color == "red.palette"){
+      dark.color = red.palette[1]
+      medium.color = red.palette[2]
+      light.color = red.palette[3]
+    }else if(palette.color == "purple.palette"){
+      dark.color = purple.palette[1]
+      medium.color = purple.palette[2]
+      light.color = purple.palette[3]
+    }else if(palette.color == "orange.palette"){
+      dark.color = orange.palette[1]
+      medium.color = orange.palette[2]
+      light.color = orange.palette[3]
+    }else if(palette.color == "lavender.palette"){
+      dark.color = lavender.palette[1]
+      medium.color = lavender.palette[2]
+      light.color = laveder.palette[3]
+    }
+    
+    library(lubridate)
+    library(dplyr)
+    library(ggplot2)
+    
+    df.agg <- aggregate(Total.Sales ~ Date.Sold.Round + Hour + Weekday, df, sum)
+    conf.df <- data.frame()
+    
+    for(i in 9:23){
+      #print(i)
+      i.hour.vec <- df.agg %>%
+        filter(Hour == i) %>%
+        select(Total.Sales)
+      #i.hour.vec <- as.double(i.hour.vec)
+      #print(head(i.hour.vec))
+      #i.estimate.95 <- t.test(i.hour.vec, conf.level = 0.95)$estimate
+      #i.conf.int.95 <- t.test(i.hour.vec, conf.level = 0.95)$conf.int
+      #i.conf.int.75 <- t.test(i.hour.vec, conf.level = 0.75)$conf.int
+      #i.conf.int.50 <- t.test(i.hour.vec, conf.level = 0.50)$conf.int
+      #three.conf.int <- c(i, i.estimate.95, i.conf.int.95, i.conf.int.75, i.conf.int.50)
+      quantiles <- quantile(as.numeric(unlist(i.hour.vec)), probs = c(.5, .025, .975, .125, .875, .25, .75))
+      #print(class(quantiles))
+      
+      quantiles.hour <- c(i, quantiles)
+      #print(class(quantiles.hour))
+      conf.df <- rbind(conf.df, quantiles.hour)
+      
+      #i.estimate.95 <- quantie(i.hour.vec, .5)
+      #i.conf.int.95.high <- 
+      #quantiles.hour <- c(i, quantile(i.hour.vec, c(.5, .025, .975, .125, .875, .25, .75)))
+    }
+    colnames(conf.df) <- c("hour", "estimate", "low95", "high95", "low75", "high75", "low50", "high50")
+    
+    # add column corresponding to # of staff needed based on $400 -> 2, $600 -> 3, etc
+    conf.df$staff.estimate <- (round(conf.df$high50/200))
+    
+    lbls = as.character(c(seq(9, 12, 1), seq(1, 11, 1)))#, c(rep("am", 3), rep("pm", 11)))
+    brks <- seq(9,23, 1)
+    
+    lbls.y = paste0("$", seq(0, 2000, 200))
+    brks.y = seq(0, 2000, 200)
+    brks.y2 = seq(0,8,1)
+    
+    day.plot <- ggplot(data = conf.df, aes(x=hour)) +
+      geom_ribbon(aes(ymin=low95, ymax=high95), fill=dark.color, alpha = .75)+
+      geom_ribbon(aes(ymin=low75, ymax=high75), fill=medium.color, alpha = .75)+
+      geom_ribbon(aes(ymin=low50, ymax=high50), fill=light.color, alpha = .75)+
+      geom_ribbon(aes(ymin=estimate-5, ymax=estimate+5), fill="black") +
+      #geom_point(aes(y=staff.estimate*200), color="#FFFF33", size = 10) +
+      scale_y_continuous(labels = scales::dollar)  
+    #geom_text(aes(y = staff.estimate*200, label = staff.estimate), color = "black", size = 5, fontface = "bold")
+    day.plot <- day.plot + scale_x_continuous(labels = lbls, breaks = brks) + 
+      ggtitle(nickname.of.time.range)
+    #scale_y_continuous(sec.axis = sec_axis(~./200, name = "Estimate of Hourly Staff Need", breaks = brks.y2), labels = lbls.y, breaks = brks.y, name = "Range of Hourly Sales") #+ ylim(0,2000)
+    #print(head(conf.df, 15))
+    #print(day.plot)
+    day.plot
+    
+  }
+  
+  dept.plots <- list()
+  for(i in 1:9)
+    local({
+      i <- i
+      this.dept.df <- filter(profile.df, Department == depts.for.plots[i])
+      p1 <- staffing.day.plot.dept2(this.dept.df, nickname.of.time.range = depts.for.plots[i])
+      dept.plots[[i]] <<- p1
+      
+    })
+  dept.plots
+}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+
+
+```
+
+
+
+## #2 Winter Saturdays - Brown - Feb, Mar, early April
+
+```{r Winter.Saturdays, echo=FALSE, message=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-02-01", Date.Sold <= "2016-04-09", Weekday == 6)
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-02-01", Date.Sold <= "2017-04-08", Weekday == 6)
+
+df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.all)
+```
+
+
+### Departments for #2 Winter Saturdays
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], #dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #3 Spring Fri-Sat - Tan - Mid-April to May
+
+```{r Spring.Fri.Sat.Tan.Mid.ApriltoMay, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-04-15", Date.Sold <= "2016-05-31", Weekday %in% c(5,6))
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-04-14", Date.Sold <= "2017-05-31", Weekday %in% c(5,6))
+
+df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #3 Spring Fri-Sat
+
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #4 Spring Sundays - Pastel Green - April-June Sundays
+
+```{r Spring.Sundays, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-04-01", Date.Sold <= "2016-06-30", Weekday == 7)
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-04-01", Date.Sold <= "2017-06-30", Weekday == 7)
+
+df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #4 Spring Sundays
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #5 May, Oct, Dec Weekdays - Yellow
+
+```{r May.Oct.Dec.Weekdays, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-05-01", Date.Sold <= "2016-05-26", Weekday %in% c(1, 2, 3, 4))
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-05-01", Date.Sold <= "2017-05-26", Weekday %in% c(1, 2, 3, 4))
+
+df3 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-10-01", Date.Sold <= "2016-10-31", Weekday %in% c(1, 2, 3, 4, 5))
+df4 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-10-01", Date.Sold <= "2017-10-31", Weekday %in% c(1, 2, 3, 4, 5))
+
+df5 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-12-05", Date.Sold <= "2016-12-07", Weekday %in% c(1, 2, 3))
+df6 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-12-04", Date.Sold <= "2017-12-06", Weekday %in% c(1, 2, 3))
+
+df7 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-12-12", Date.Sold <= "2016-12-22", Weekday %in% c(1, 2, 3, 4))
+df8 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-12-11", Date.Sold <= "2017-12-21", Weekday %in% c(1, 2, 3, 4))
+
+df.all <- rbind(df1, df2, df3, df4, df5, df6, df7, df8)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #5 May, Oct, Dec Weekdays
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #6 Jun/Sep 6 Days - Bold Green
+
+```{r Jun.Sep.6.days, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-05-28", Date.Sold <= "2016-06-25", Weekday %in% c(1, 2, 3, 4, 5, 6))
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-09-03", Date.Sold <= "2016-09-30", Weekday %in% c(1, 2, 3, 4, 5, 6))
+df3 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-05-29", Date.Sold <= "2017-06-26", Weekday %in% c(1, 2, 3, 4, 5, 6))
+df4 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-09-04", Date.Sold <= "2017-09-30", Weekday %in% c(1, 2, 3, 4, 5, 6))
+
+df.all <- rbind(df1, df2, df3, df4)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #6 Jun/Sep 6 Days
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #7 Peak 6 Days - Pastel Blue - Mon-Sat Jul & Aug
+
+```{r peak.6.days, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-06-25", Date.Sold <= "2016-09-03", Weekday %in% c(1, 2, 3, 4, 5, 6))
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-06-25", Date.Sold <= "2017-09-03", Weekday %in% c(1, 2, 3, 4, 5, 6))
+
+df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #7 Peak 6 Days
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #8 Peak Sundays - Red - July-Labor Day Sundays
+
+```{r Peak.Sundays, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-07-01", Date.Sold <= "2016-09-04", Weekday == 7)
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-07-01", Date.Sold <= "2017-09-03", Weekday == 7)
+
+df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #8 Peak Sundays
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #9 Fall Weekend - Purple - Oct Sat/Sun & Nov Sat
+
+```{r Fall.Weekend, echo=FALSE, message=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-10-01", Date.Sold <= "2016-10-31", Weekday %in% c(6, 7))
+df2 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-10-01", Date.Sold <= "2017-10-31", Weekday %in% c(6, 7))
+
+df3 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-11-01", Date.Sold <= "2016-11-19", Weekday == 6)
+df4 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-11-01", Date.Sold <= "2017-11-18", Weekday == 6)
+
+df.all <- rbind(df1, df2, df3, df4)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #9 Fall Weekend
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```
+
+## #10 Xmas Peak - Bright Blue - Fri, Sat, Sun Dec
+
+```{r Xmas.Peak, echo=FALSE, warning=FALSE}
+
+df1 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-12-08", Weekday == 4)
+df2 <- data2years.wide %>%
+  filter(Date.Sold == "2017-12-07", Weekday == 4)
+
+df3 <- data2years.wide %>%
+  filter(Date.Sold >= "2016-11-01", Date.Sold <= "2016-11-19", Weekday == 6)
+df4 <- data2years.wide %>%
+  filter(Date.Sold >= "2017-11-01", Date.Sold <= "2017-11-18", Weekday == 6)
+
+df.all <- rbind(df1, df2, df3, df4)
+staffing.day.plot.dots(df.all)
+```
+
+### Departments for #10 Xmas Peak
+
+```{r, echo=FALSE, fig.height=10}
+
+#dept.plots1 <- staffing.day.plot.dept2.loop(df.all)
+
+#grid.arrange(dept.plots1[[1]], dept.plots1[[2]], dept.plots1[[3]],dept.plots1[[4]], dept.plots1[[5]], dept.plots1[[6]], dept.plots1[[7]], dept.plots1[[8]], dept.plots1[[9]], ncol = 3, nrow = 3)
+```

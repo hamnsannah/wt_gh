@@ -1,0 +1,188 @@
+---
+title: "Supplier Concentration Analysis"
+author: "Sam Pritchard"
+date: "December 22, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(dplyr)
+require(ggplot2)
+require(lubridate)
+require(knitr)
+
+data17 <- read.csv("Detailed Sales Report 17.csv", stringsAsFactors = FALSE)
+data16 <- read.csv("Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
+
+data.both <- rbind(data17, data16)
+data.both$Total.Sales <- as.numeric(data.both$Total.Sales)
+data.both <- filter(data.both, !is.na(Total.Sales)) #removes the sums that had $ signs in them
+print(paste("sum of Total.Sales is", sum(data.both$Total.Sales)))
+data.both$Date.Sold <- mdy_hm(data.both$Date.Sold)
+data.both$Year <- year(data.both$Date.Sold)
+data.both$Month <- month(data.both$Date.Sold)
+data.both$Department <- trimws(data.both$Department)
+data.both$Category <- trimws(data.both$Category)
+data.both$Supplier <- trimws(data.both$Supplier)
+data.both$Item <- trimws(data.both$Item)
+#print(head(data.both))
+data.both$Dept.By.Year <- paste(data.both$Department, data.both$Year)
+data.both$Categ.By.Year <- paste(data.both$Category, data.both$Year)
+
+dept.agg <- aggregate(Total.Sales ~ Dept.By.Year + Department + Categ.By.Year + Category + Year, data.both, sum)
+```
+
+## Concentration of Sales By Supplier
+
+#SUPPLIERS
+Of 435 Suppliers the top 10% (44 of them) make up 55.1% of sales
+The top 20% (88 of them) make up 74.6% of sales
+30% makes up 85.3%
+40% makes up 92.2%
+50% makes up 96.4%
+
+In $ the bottom 25% brought in $10,671 in 2017, which is 109 suppliers
+
+This chart can be read starting on the x axis at the bottom "The top 25% of suppliers accounted for a little less than $1.75MM YTD in 2017.  The top 50% accounted for a little over $2MM YTD"
+
+```{r, echo=FALSE}
+data.both.supplier <- data.both
+data.both.supplier$Supp.By.Year <- paste(data.both.supplier$Supplier, data.both.supplier$Year)
+supplier.agg <- aggregate(Total.Sales ~ Supp.By.Year + Supplier + Year, data.both.supplier, sum)
+supplier.agg17 <- filter(supplier.agg, Year == 2017)
+supp17sum <- sum(supplier.agg17$Total.Sales)
+supplier.agg17 <- mutate(supplier.agg17, "Perc.Whole" = round((Total.Sales/supp17sum)*100, 2))
+supplier.agg17 <- arrange(supplier.agg17, desc(Total.Sales))
+#print(head(supplier.agg17, 50))
+
+#sum(supplier.agg17$Perc.Whole[1:44]) #10%
+
+#sum(supplier.agg17$Perc.Whole[1:88]) #20%
+#sum(supplier.agg17$Perc.Whole[1:132]) #30%
+#sum(supplier.agg17$Perc.Whole[1:176]) #40%
+#sum(supplier.agg17$Perc.Whole[1:218]) #50%
+
+#sum(supplier.agg17$Perc.Whole[(435-44):435]) #bottom 10%
+#sum(supplier.agg17$Perc.Whole[326:435]) #bottom 25%
+#summary(cars)
+
+#create data frame with columns 
+      #1) Top Percentage of all suppliers in increments of 1% 
+      #2) Total sales at each increment 
+      #3) Total units (rows in detailed sales report) at each increment 
+      #4) Number of items associated with those suppliers (at least those sold)
+
+# begin with data by suppliers showing Total.Sales, Items, units sold
+increment.rows <- data.frame()
+perc.inc.df <- for(h in 1:100){
+  one.to.h.sum <- sum(supplier.agg17$Total.Sales[1:((h/100)*nrow(supplier.agg17))])
+  row.h <- c(h, round(nrow(supplier.agg17)*(h/100)), one.to.h.sum)
+  #print(row.h)
+  increment.rows <- rbind(increment.rows, row.h)
+}
+
+
+colnames(increment.rows) <- c("Perc. of LARGEST Suppliers", "Number of Suppliers", "Sales")
+increment.rows <- mutate(increment.rows, "Perc. of Sales" = (increment.rows[,3]/tail(increment.rows[,3],1))*100)
+
+
+
+supp.conc <- ggplot(increment.rows, aes(x=`Perc. of LARGEST Suppliers`, y=Sales, group= 1)) +
+  geom_line(size=2, color="blue")
+print(supp.conc)
+```
+
+### Table of Sales by LARGEST X% of Suppliers for 2017
+
+This table can be read as "the top 1% of suppliers by volume or dollars, which is about 4 of them, brought in $284,036 in sales, which is 13.3% of all sales for the business in 2017"
+
+```{r, echo=FALSE}
+increment.rows$Sales <- paste0("$",prettyNum(round(increment.rows$Sales), big.mark = ","))
+increment.rows$`Perc. of LARGEST Suppliers` <- paste0(increment.rows$`Perc. of LARGEST Suppliers`, "%")
+increment.rows$`Perc. of Sales` <- paste0(round(increment.rows$`Perc. of Sales`, 1), "%")
+increment.rows$`Number of Suppliers` <- as.character(increment.rows$`Number of Suppliers`)
+kable(increment.rows)
+```
+
+## Who are the LARGEST 10% of Suppliers?
+
+Over half of all sales in 2017 YTD came from these 44 Suppliers
+
+```{r, echo=FALSE}
+supplier.agg16 <- filter(supplier.agg, Year == 2016)
+sup.merge16 <- supplier.agg16[,c(2,4)]
+colnames(sup.merge16) <- c("Supplier", "2016")
+sup.merge <- merge(supplier.agg17, sup.merge16, by.x="Supplier", all.x=TRUE, all.y=FALSE)
+sup.merge <- mutate(sup.merge, "Growth" = Total.Sales - `2016`, "Perc.Growth" = paste0(round((Growth/`2016`)*100,1),"%")) %>%
+  arrange(desc(Total.Sales)) %>%
+  select(1,4:8)
+colnames(sup.merge)[c(2,4)] <- c("Sales.2017", "Sales.2016")
+supplier.agg17.pretty <- sup.merge 
+supplier.agg17.pretty$Perc.Whole <- paste0(supplier.agg17.pretty$Perc.Whole, "%")
+supplier.agg17.pretty$Growth <- paste0("$",prettyNum(round(supplier.agg17.pretty$Growth), big.mark = ","))
+supplier.agg17.pretty$Sales.2016 <- paste0("$",prettyNum(round(supplier.agg17.pretty$Sales.2016), big.mark = ","))
+supplier.agg17.pretty$Sales.2017 <- paste0("$",prettyNum(round(supplier.agg17.pretty$Sales.2017), big.mark = ",")) ## Switch back
+kable(supplier.agg17.pretty[1:44,])
+
+```
+
+## Chart of Sales by SMALLEST X% of Suppliers
+
+This chart is the opposite of the one above.  It can be read starting at the axis on the bottom "The smallest 25% of all suppliers accounted for almost nothing, and the bottom 50% account for something less than $100K"
+
+```{r, echo=FALSE}
+supplier.agg17.bottom <- arrange(supplier.agg17, Total.Sales)
+increment.rows.b <- data.frame()
+perc.inc.df <- for(h in 1:100){
+  one.to.h.sum <- sum(supplier.agg17.bottom$Total.Sales[1:((h/100)*nrow(supplier.agg17.bottom))])
+  row.h <- c(h, round(nrow(supplier.agg17.bottom)*(h/100)), one.to.h.sum)
+  #print(row.h)
+  increment.rows.b <- rbind(increment.rows.b, row.h)
+}
+colnames(increment.rows.b) <- c("Perc. of SMALLEST Suppliers", "Number of Suppliers", "Sales")
+increment.rows.b <- mutate(increment.rows.b, "Perc. of Sales" = (increment.rows.b[,3]/tail(increment.rows.b[,3],1))*100)
+
+supp.conc.b <- ggplot(increment.rows.b, aes(x=`Perc. of SMALLEST Suppliers`, y=Sales, group= 1)) +
+  geom_line(size=2, color="blue")
+print(supp.conc.b)
+
+```
+
+# Table of Sales by SMALLEST X% of Suppliers
+
+This table can be read as "The smallest 1% of suppliers by volume/dollars, which is 4 suppliers accounted for $10 combined in 2017, which is roughly 0% of the whole business"
+
+```{r, echo=FALSE}
+increment.rows.b$Sales <- paste0("$",prettyNum(round(increment.rows.b$Sales), big.mark = ","))
+increment.rows.b$`Perc. of SMALLEST Suppliers` <- paste0(increment.rows.b$`Perc. of SMALLEST Suppliers`, "%")
+increment.rows.b$`Perc. of Sales` <- paste0(round(increment.rows.b$`Perc. of Sales`, 2), "%")
+increment.rows.b$`Number of Suppliers` <- as.character(increment.rows.b$`Number of Suppliers`)
+kable(increment.rows.b)
+
+```
+
+## Who are the SMALLEST 25% of Suppliers?
+
+Only $10,197 came from these 109 Suppliers all year, which is 0.48% of 2017 sales YTD
+
+Of these 109 suppliers, only 16 of them begin with a Z denoting a past supplier.
+
+```{r, echo=FALSE}
+supplier.agg16 <- filter(supplier.agg, Year == 2016)
+sup.merge16 <- supplier.agg16[,c(2,4)]
+colnames(sup.merge16) <- c("Supplier", "2016")
+sup.merge <- merge(supplier.agg17.bottom, sup.merge16, by.x="Supplier", all.x=TRUE, all.y=FALSE)
+sup.merge <- mutate(sup.merge, "Growth" = Total.Sales - `2016`, "Perc.Growth" = paste0(round((Growth/`2016`)*100,1),"%")) %>%
+  arrange(Total.Sales) %>%
+  select(1,4:8)
+colnames(sup.merge)[c(2,4)] <- c("Sales.2017", "Sales.2016")
+
+supplier.agg17.pretty.b <-  sup.merge   #supplier.agg17.bottom
+supplier.agg17.pretty.b$Perc.Whole <- paste0(supplier.agg17.pretty.b$Perc.Whole, "%")
+supplier.agg17.pretty.b$Sales.2017 <-paste0("$",prettyNum(round(supplier.agg17.pretty.b$Sales.2017), big.mark = ","))
+supplier.agg17.pretty.b$Sales.2016 <-paste0("$",prettyNum(round(supplier.agg17.pretty.b$Sales.2016), big.mark = ","))
+supplier.agg17.pretty.b$Growth <-paste0("$",prettyNum(round(supplier.agg17.pretty.b$Growth), big.mark = ","))
+kable(supplier.agg17.pretty.b[1:109,])
+
+```

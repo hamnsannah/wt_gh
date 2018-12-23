@@ -1,0 +1,90 @@
+---
+title: "T-Test Simulations"
+author: "Sam Pritchard"
+date: "December 24, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(dplyr)
+require(ggplot2)
+require(lubridate)
+```
+
+## Means are 2 standard deviations apart
+
+```{r, echo=FALSE}
+
+
+rand.norm1 <- rnorm(100)
+rand.norm2 <- (rnorm(100)+2)
+
+conf.df <- data.frame()
+for(i in 1:99){
+  rand1 <- rand.norm1[1:(i+1)]
+  rand2 <- rand.norm2[1:(i+1)]
+  t.test.i <- t.test(rand1, rand2)
+  conf.int.i <- t.test.i$conf.int
+  conf.df <- rbind(conf.df, conf.int.i)
+}
+conf.df$deg.free <- seq(nrow(conf.df))
+colnames(conf.df) <- c("low.bound", "high.bound", "deg.free")
+print(head(conf.df))
+rplot <- ggplot(conf.df, aes(x=deg.free)) +
+  geom_point(aes(y=low.bound))+
+  geom_point(aes(y=high.bound))+
+  geom_segment(x=0, xend=99, y=0, yend=0, color="yellow")
+print(rplot)
+  
+  
+
+
+```
+
+## One Standard Deviation Higher
+
+```{r pressure, echo=FALSE}
+rand.norm1 <- rnorm(100)
+rand.norm2 <- (rnorm(100)+1)
+
+conf.df <- data.frame()
+for(i in 1:99){
+  rand1 <- rand.norm1[1:(i+1)]
+  rand2 <- rand.norm2[1:(i+1)]
+  t.test.i <- t.test(rand1, rand2)
+  conf.int.i <- t.test.i$conf.int
+  conf.df <- rbind(conf.df, conf.int.i)
+}
+conf.df$deg.free <- seq(nrow(conf.df))
+colnames(conf.df) <- c("low.bound", "high.bound", "deg.free")
+print(head(conf.df))
+rplot <- ggplot(conf.df, aes(x=deg.free)) +
+  geom_point(aes(y=low.bound))+
+  geom_point(aes(y=high.bound))+
+  geom_segment(x=0, xend=99, y=0, yend=0, color="yellow")
+print(rplot)
+```
+
+## 1/5 of a standard deviation higher
+
+```{r, echo=FALSE}
+rand.norm1 <- rnorm(100)
+rand.norm2 <- (rnorm(100)+.2)
+
+conf.df <- data.frame()
+for(i in 1:99){
+  rand1 <- rand.norm1[1:(i+1)]
+  rand2 <- rand.norm2[1:(i+1)]
+  t.test.i <- t.test(rand1, rand2)
+  conf.int.i <- t.test.i$conf.int
+  conf.df <- rbind(conf.df, conf.int.i)
+}
+conf.df$deg.free <- seq(nrow(conf.df))
+colnames(conf.df) <- c("low.bound", "high.bound", "deg.free")
+print(head(conf.df))
+rplot <- ggplot(conf.df, aes(x=deg.free)) +
+  geom_point(aes(y=low.bound))+
+  geom_point(aes(y=high.bound))+
+  geom_segment(x=0, xend=99, y=0, yend=0, color="yellow")
+print(rplot)

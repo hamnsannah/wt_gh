@@ -1,0 +1,173 @@
+---
+title: "Sales Year Over Year By Department and Category"
+author: "Sam Pritchard"
+date: "December 28, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(ggplot2)
+require(dplyr)
+require(lubridate)
+require(scales)
+```
+
+## Headline:
+### This document contains exploratory charts for sales year over year by department and category.  Some of the categories include comments.  This may be data that your systems already generate but I generated these as a part of the process of familiarizing myself with the data and the sales patterns. Note: this data includes full year 2016 but only 11.5 months of 2017 since the year wasn't over when the data was pulled.
+
+```{r,echo=FALSE, include=FALSE}
+
+# NEED TO MAKE IT YTD VS. YTD!!!!
+
+data17 <- read.csv("data/Detailed Sales Report 17 full.csv", stringsAsFactors = FALSE)
+data16 <- read.csv("data/Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
+
+data.both <- rbind(data17, data16)
+data.both$Total.Sales <- as.numeric(data.both$Total.Sales)
+data.both <- filter(data.both, !is.na(Total.Sales)) #removes the sums that had $ signs in them
+print(paste("sum of Total.Sales is", sum(data.both$Total.Sales)))
+data.both$Date.Sold <- mdy_hm(data.both$Date.Sold)
+data.both$Year <- year(data.both$Date.Sold)
+data.both$Month <- month(data.both$Date.Sold)
+data.both$Department <- trimws(data.both$Department)
+data.both$Category <- trimws(data.both$Category)
+data.both$Supplier <- trimws(data.both$Supplier)
+data.both$Item <- trimws(data.both$Item)
+#print(head(data.both))
+data.both$Dept.By.Year <- paste(data.both$Department, data.both$Year)
+data.both$Categ.By.Year <- paste(data.both$Category, data.both$Year)
+
+dept.agg <- aggregate(Total.Sales ~ Dept.By.Year + Department + Categ.By.Year + Category + Year, data.both, sum)
+```
+
+## Sales By Departments '17 vs. '16
+
+```{r, echo=FALSE}
+
+dept.bar <- ggplot(data = dept.agg, aes(Dept.By.Year)) +
+  geom_bar(aes(fill=Department, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Department") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(dept.bar)
+
+```
+
+\newpage
+
+## Sales By Departments '17 vs. '16 (Removed Very Small Depts)
+
+Removed the following categories: "POSTAGE", "MISCELLANEOUS PAPER", "MISCELLANEOUS", "GIFT CARD", "DISPLAY"
+
+```{r, echo=FALSE}
+small.depts <- c("POSTAGE", "MISCELLANEOUS PAPER", "MISCELLANEOUS", "GIFT CARD", "DISPLAY", "")
+
+dept.not.small.agg <- dept.agg[!(dept.agg$Department %in% small.depts),]
+
+dept.not.small.bar <- ggplot(data = dept.not.small.agg, aes(Dept.By.Year)) +
+  geom_bar(aes(fill=Department, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Department") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(dept.not.small.bar)
+```
+
+\newpage
+
+### Jewelry by Category
+
+Slight declines in most major categories but the one in bracelets is larger.  The declines follow the trend for the category
+
+```{r, echo=FALSE}
+
+jewelry.agg <- filter(dept.not.small.agg, Department == "JEWELRY")
+jewelry.bar <- ggplot(data = jewelry.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Category") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(jewelry.bar)
+
+```
+
+\newpage
+
+### General Merchandise by Category
+The Categories HOUSEWARES, CRAFTS, and ART GLASS were the highest for General Merchandise.  Housewares also grew substantially over last year, as did PERS ACCES/BAGS/POUCHES.
+
+As in some other categories, fewer items are uncategorized which may make growth look better than in really is in 2017.
+Best categories in ters
+
+```{r, echo=FALSE}
+
+gmerch.agg <- filter(dept.not.small.agg, Department == "GENERAL MERCHANDISE")
+gmerch.bar <- ggplot(data = gmerch.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Category") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(gmerch.bar)
+
+```
+
+
+### Counter Card by Category
+
+BIRTHDAY is the largest category by far but saw a slight decline. The second highest is BLANK cards which also saw an increase in 2017
+
+```{r, echo=FALSE, fig.height=11}
+
+counterc.agg <- filter(dept.not.small.agg, Department == "COUNTER CARD")
+counterc.bar <- ggplot(data = counterc.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Category") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(counterc.bar)
+
+```
+
+\newpage
+
+### Toys by Category
+
+IMAGINATIVE PLAY was the top toy category last year and it has continued to an even bigger year as top seller again in 2017. 
+
+PLUSH similarly was a really big seller last year (#2) and saw growth on top of that. 
+
+Other Categories with big growth were CREATIVE LEARNING, BABY, OUTDOOR FUN.
+
+Notable declines occurred in PUZZLES, PUPPETS, and FINGER PUPPETS
+
+Note that there were more uncategorized TOYS purchases in 2016, so that likely inflates some of the 2017 categories 
+
+```{r, echo=FALSE, fig.height=7}
+
+toys.agg <- filter(dept.not.small.agg, Department == "TOYS")
+toys.bar <- ggplot(data = toys.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Category") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(toys.bar)
+
+```
+
+\newpage
+
+### Books by Category
+
+TOY BOOK HARDBACK is the highest in the category and brings in roughly $80K per year
+
+```{r, echo=FALSE}
+
+books.agg <- filter(dept.not.small.agg, Department == "BOOKS")
+books.bar <- ggplot(data = books.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none") + ylab("Total Sales in $") + xlab("Category") + 
+  scale_y_continuous(labels = scales::comma)
+
+print(books.bar)
+
+```

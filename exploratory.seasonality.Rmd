@@ -1,0 +1,95 @@
+---
+title: "What Beats the Sales Trend in Off-Peak Months?"
+author: "Sam Pritchard"
+date: "January 15, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(ggplot2)
+require(lubridate)
+require(dplyr)
+require(knitr)
+
+setwd("D://Users/SPritchard/Music/Documents/R/allocate/whaletale/")
+mutated.data <- read.csv("mutated.data.14.17decpart.csv", stringsAsFactors = FALSE)
+mutated.data$Date <- as_date(mutated.data$Date.Sold)
+mutated.data <- filter(mutated.data, Year == 2017) #### just one year or more?
+```
+
+## Beating the Trend
+
+```{r, echo=FALSE}
+peak.months <- c(6, 7, 8, 9)
+mutated.peak <- mutated.data %>%
+  filter(Month %in% peak.months)
+mutated.peak.dept.agg <- aggregate(Total.Sales ~ Department, mutated.peak, sum)
+colnames(mutated.peak.dept.agg) <- c("Department", "Peak.Sales")
+mutated.peak.dept.agg$Peak.Sales <- mutated.peak.dept.agg$Peak.Sales/4
+print(colnames(mutated.peak.dept.agg))
+monthly.with.peaks <- data.frame()
+for(i in 1:12){
+  mutated.month.i <- mutated.data %>%
+    filter(Month == i) 
+  mutated.month.i.agg <- aggregate(Total.Sales ~ Department, mutated.month.i, sum)
+  
+  mutated.month.i.agg.merged <- merge(mutated.month.i.agg, mutated.peak.dept.agg, all.x = TRUE, all.y = TRUE)
+  mutated.month.i.agg.merged$Month <- i
+  mutated.month.i.agg.merged <- filter(mutated.month.i.agg.merged, Department != "")
+  #print(head(mutated.month.i.agg.merged))
+  monthly.with.peaks <- rbind(monthly.with.peaks, mutated.month.i.agg.merged)
+}
+monthly.with.peaks[is.na(monthly.with.peaks)] <- 0
+monthly.with.peaks <- monthly.with.peaks %>%
+  mutate("Perc.From.Peak" = ((Total.Sales - Peak.Sales)/Peak.Sales)*100)
+monthly.with.peaks[is.nan(monthly.with.peaks$Perc.From.Peak),5] <- -1
+kable(monthly.with.peaks)
+```
+
+## Plotting Department Seasonality
+#### Difference from Peak
+
+```{r, echo=FALSE}
+
+depts <- ggplot(data = monthly.with.peaks, aes(x = Month, y = Perc.From.Peak, col = Department)) + geom_line()
+print(depts)
+
+```
+
+#### Without Christmas
+
+```{r, echo=FALSE}
+monthly.no.christmas <- filter(monthly.with.peaks, Department != "CHRISTMAS")
+depts2 <- ggplot(data = monthly.no.christmas, aes(x = Month, y = Perc.From.Peak, col = Department)) + geom_line()
+print(depts2)
+
+```
+
+#### Without Christmas - Jan-May
+ 
+```{r, echo=FALSE}
+monthly.no.christmas.janmay <- filter(monthly.no.christmas, Month %in% 1:5)
+depts3 <- ggplot(data = monthly.no.christmas.janmay, aes(x = Month, y = Perc.From.Peak, col = Department)) + geom_line()
+print(depts3)
+
+```
+
+#### Points
+
+```{r, echo=FALSE}
+#monthly.no.christmas.janmay <- filter(monthly.no.christmas, Month %in% 1:5)
+depts4 <- ggplot(data = monthly.no.christmas.janmay, aes(x = Total.Sales, y = Perc.From.Peak, col = Department, size = Peak.Sales)) + geom_point()
+print(depts4)
+
+```
+
+#### Points Animated
+
+```{r, echo=FALSE}
+library(gganimate)
+#monthly.no.christmas.janmay <- filter(monthly.no.christmas, Month %in% 1:5)
+depts5 <- ggplot(data = monthly.no.christmas.janmay, aes(x = Total.Sales, y = Perc.From.Peak, col = Department, size = Peak.Sales, frame = Month)) + geom_point()
+gganimate(depts5)
+
+```

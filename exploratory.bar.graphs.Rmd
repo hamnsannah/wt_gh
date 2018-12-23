@@ -1,0 +1,211 @@
+---
+title: "Exploratory Bar Graphs - Whale's Tale"
+author: "Sam Pritchard"
+date: "December 20, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(ggplot2)
+require(dplyr)
+require(lubridate)
+```
+
+
+
+```{r,echo=FALSE}
+
+# NEED TO MAKE IT YTD VS. YTD!!!!
+
+data17 <- read.csv("data/Detailed Sales Report 17 full.csv", stringsAsFactors = FALSE)
+data16 <- read.csv("data/Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
+data16 <- data16[,-c(18, 19, 21)]
+
+data.both <- rbind(data17, data16)
+data.both$Total.Sales <- as.numeric(data.both$Total.Sales)
+data.both <- filter(data.both, !is.na(Total.Sales)) #removes the sums that had $ signs in them
+print(paste("sum of Total.Sales is", sum(data.both$Total.Sales)))
+data.both$Date.Sold <- mdy_hm(data.both$Date.Sold)
+data.both$Year <- year(data.both$Date.Sold)
+data.both$Month <- month(data.both$Date.Sold)
+data.both$Department <- trimws(data.both$Department)
+data.both$Category <- trimws(data.both$Category)
+data.both$Supplier <- trimws(data.both$Supplier)
+data.both$Item <- trimws(data.both$Item)
+#print(head(data.both))
+data.both$Dept.By.Year <- paste(data.both$Department, data.both$Year)
+data.both$Categ.By.Year <- paste(data.both$Category, data.both$Year)
+
+dept.agg <- aggregate(Total.Sales ~ Dept.By.Year + Department + Categ.By.Year + Category + Year, data.both, sum)
+```
+
+#SUPPLIERS
+Of 435 Suppliers the top 10% (44 of them) make up 55.1% of sales
+The top 20% (88 of them) make up 74.6% of sales
+30% makes up 85.3%
+40% makes up 92.2%
+50% makes up 96.4%
+
+In $ the bottom 25% brought in $10,671 in 2017, which is 109 suppliers
+```{r, echo=FALSE}
+data.both.supplier <- data.both
+data.both.supplier$Supp.By.Year <- paste(data.both.supplier$Supplier, data.both.supplier$Year)
+supplier.agg <- aggregate(Total.Sales ~ Supp.By.Year + Supplier + Year, data.both.supplier, sum)
+supplier.agg17 <- filter(supplier.agg, Year == 2017)
+supp17sum <- sum(supplier.agg17$Total.Sales)
+supplier.agg17 <- mutate(supplier.agg17, "Perc.Whole" = round((Total.Sales/supp17sum)*100, 1))
+supplier.agg17 <- arrange(supplier.agg17, desc(Total.Sales))
+print(head(supplier.agg17))
+
+sum(supplier.agg17$Perc.Whole[1:44]) #10%
+
+sum(supplier.agg17$Perc.Whole[1:88]) #20%
+sum(supplier.agg17$Perc.Whole[1:132]) #30%
+sum(supplier.agg17$Perc.Whole[1:176]) #40%
+sum(supplier.agg17$Perc.Whole[1:218]) #50%
+
+sum(supplier.agg17$Perc.Whole[(435-44):435]) #bottom 10%
+sum(supplier.agg17$Perc.Whole[326:435]) #bottom 25%
+
+supplier.agg16 <- filter(supplier.agg, Year == 2016)
+sup.merge16 <- supplier.agg16[,c(2,4)]
+colnames(sup.merge16) <- c("Supplier", "2016")
+sup.merge17 <- supplier.agg17[,c(2,4)]
+colnames(sup.merge17) <- c("Supplier", "2017")
+sup.merge <- merge(sup.merge17, sup.merge16)
+sup.merge2 <- mutate(sup.merge, "Growth" = `2017` - `2016`, "Perc.Growth" = paste0(round((Growth/`2016`)*100,1),"%"))
+supplier.agg17 <- arrange(supplier.agg17, desc(Total.Sales))
+b25suppliers17 <- supplier.agg17[326:435,]
+b25growth <- filter(sup.merge2, Supplier %in% b25suppliers17$Supplier)
+
+b25growth <- arrange(b25growth, desc(`2017`))
+library(knitr)
+kable(b25growth)
+
+
+
+```
+
+## Bar Graphs Departments
+
+```{r, echo=FALSE}
+
+
+dept.bar <- ggplot(data = dept.agg, aes(Dept.By.Year)) +
+  geom_bar(aes(fill=Department, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(dept.bar)
+
+
+```
+
+## Remove Very Small Depts
+
+Removed the following categories: "POSTAGE", "MISCELLANEOUS PAPER", "MISCELLANEOUS", "GIFT CARD", "DISPLAY"
+
+```{r, echo=FALSE}
+small.depts <- c("POSTAGE", "MISCELLANEOUS PAPER", "MISCELLANEOUS", "GIFT CARD", "DISPLAY", "")
+
+dept.not.small.agg <- dept.agg[!(dept.agg$Department %in% small.depts),]
+
+dept.not.small.bar <- ggplot(data = dept.not.small.agg, aes(Dept.By.Year)) +
+  geom_bar(aes(fill=Department, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(dept.not.small.bar)
+```
+
+### Jewelry by Category
+
+Slight declines in most major categories but the one in bracelets is larger.  The declines follow the trend for the category
+
+```{r, echo=FALSE}
+
+jewelry.agg <- filter(dept.not.small.agg, Department == "JEWELRY")
+jewelry.bar <- ggplot(data = jewelry.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(jewelry.bar)
+
+
+```
+
+### General Merchandise by Category
+The Categories HOUSEWARES, CRAFTS, and ART GLASS were the highest for General Merchandise.  Housewares also grew substantially over last year, as did PERS ACCES/BAGS/POUCHES.
+
+As in some other categories, fewer items are uncategorized which may make growth look better than in really is in 2017.
+Best categories in ters
+
+```{r, echo=FALSE}
+
+gmerch.agg <- filter(dept.not.small.agg, Department == "GENERAL MERCHANDISE")
+gmerch.bar <- ggplot(data = gmerch.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(gmerch.bar)
+
+
+```
+
+### Counter Card by Category
+
+BIRTHDAY is the largest category by far but saw a slight decline.
+
+The second highest is BLANK cards which also saw an increase in 2017
+
+```{r, echo=FALSE, fig.height=11}
+
+counterc.agg <- filter(dept.not.small.agg, Department == "COUNTER CARD")
+counterc.bar <- ggplot(data = counterc.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(counterc.bar)
+
+
+```
+
+### Toys by Category
+
+IMAGINATIVE PLAY was the top toy category last year and it has continued to an even bigger year as top seller again in 2017. 
+
+PLUSH similarly was a really big seller last year (#2) and saw growth on top of that. 
+
+Other Categories with big growth were CREATIVE LEARNING, BABY, OUTDOOR FUN.
+
+Notable declines occurred in PUZZLES, PUPPETS, and FINGER PUPPETS
+
+Note that there were more uncategorized TOYS purchases in 2016, so that likely inflates some of the 2017 categories 
+
+```{r, echo=FALSE}
+
+toys.agg <- filter(dept.not.small.agg, Department == "TOYS")
+toys.bar <- ggplot(data = toys.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(toys.bar)
+
+
+```
+
+
+### Books by Category
+
+TOY BOOK HARDBACK is the highest in the category and brings in roughly $80K per year
+
+```{r, echo=FALSE}
+
+books.agg <- filter(dept.not.small.agg, Department == "BOOKS")
+books.bar <- ggplot(data = books.agg, aes(Categ.By.Year)) +
+  geom_bar(aes(fill=Category, weight=Total.Sales)) + 
+  coord_flip() + theme(legend.position = "none")
+
+print(books.bar)
+
+
+```

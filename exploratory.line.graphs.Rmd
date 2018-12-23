@@ -1,0 +1,116 @@
+---
+title: "Line Graphs"
+author: "Sam Pritchard"
+date: "December 21, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(dplyr)
+require(ggplot2)
+require(lubridate)
+
+data17 <- read.csv("Detailed Sales Report 17.csv", stringsAsFactors = FALSE)
+data16 <- read.csv("Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
+
+data.both <- rbind(data17, data16)
+data.both$Total.Sales <- as.numeric(data.both$Total.Sales)
+data.both <- filter(data.both, !is.na(Total.Sales)) #removes the sums that had $ signs in them
+print(paste("sum of Total.Sales is", sum(data.both$Total.Sales)))
+data.both$Date.Sold <- mdy_hm(data.both$Date.Sold)
+data.both$Date <- as_date(data.both$Date.Sold)
+data.both$Year <- year(data.both$Date.Sold)
+data.both$Month <- month(data.both$Date.Sold)
+data.both$Department <- trimws(data.both$Department)
+data.both$Category <- trimws(data.both$Category)
+data.both$Supplier <- trimws(data.both$Supplier)
+data.both$Item <- trimws(data.both$Item)
+data.both$Year.Month <- as.numeric(paste0(substr(data.both$Year,3,4), data.both$Month))
+data.both$Year.Month <- as.factor(data.both$Year.Month)
+data.both.supplier <- data.both
+line.test <- aggregate(Total.Sales ~ Year.Month + Year + Month, data.both.supplier, sum)
+line.test <- arrange(line.test, Year, Month)
+line.test$Year <- as.factor(line.test$Year)
+line.test$Month <- as.factor(line.test$Month)
+line.test$MPeriod <- seq_len(nrow(line.test))
+#line.test$MPeriod <- MPeriod
+#line.test <- mutate(line.test, "MPeriod" = period(seq(line.test), seq("months")))
+line.sup.agg <- aggregate(Total.Sales ~ Supplier + Year.Month, data.both.supplier, sum)
+line.sup.agg.all <- aggregate(Total.Sales ~ Date, data.both.supplier, sum)
+print(head(line.sup.agg.all, 20))
+```
+## Line Graph All Suppliers
+
+```{r, echo=FALSE}
+print(head(line.sup.agg.all, 20))
+all.sup <- ggplot(line.sup.agg.all, aes(x=Date, y=Total.Sales)) +
+  geom_line()
+print(all.sup)
+
+print(line.test)
+all.test <- ggplot(line.test, aes(x=MPeriod, y=Total.Sales, group = 1)) +
+  geom_line()
+print(all.test)
+
+all.test.yy <- ggplot(line.test, aes(x=Month,y=Total.Sales, group = Year)) +
+    geom_line(aes(color = Year))
+print(all.test.yy)
+```
+
+## Line Graphs for Top 10% Suppliers
+
+```{r, echo=FALSE}
+
+supplier.agg <- aggregate(Total.Sales ~ Year + Supplier, data.both, sum)
+supplier.agg <- supplier.agg %>% filter(Year == 2016) %>% arrange(desc(Total.Sales))
+print(paste("total suppliers in 16=", nrow(supplier.agg)))
+top10supp <- unique(trimws(supplier.agg$Supplier)) ### add back in subset [1:43] for true top 10%
+supplier.agg$Supplier <- as.factor(supplier.agg$Supplier)
+print(head(supplier.agg))
+print(dim(supplier.agg))
+supplier.time.agg <- aggregate(Total.Sales ~ Year + Month + Supplier, data.both, sum)
+supplier.best.agg <- filter(supplier.time.agg, Supplier %in% top10supp)
+supplier.best.agg$Year <- as.factor(supplier.best.agg$Year)
+supplier.best.agg$Month <- as.factor(supplier.best.agg$Month)
+
+supplier.t <- supplier.best.agg[supplier.best.agg$Supplier == top10supp[1],]
+supp.plot.t <- ggplot(supplier.t, aes(x=Month,y=Total.Sales, group = Year)) +
+    geom_line(aes(color = Year)) + ggtitle(paste("Trend Year Over Year for", supplier.t$Supplier[1]))
+#print(supp.plot.t)
+
+item.agg <- aggregate(Total.Sales ~ Year + Month + Supplier + Item, data.both, sum)
+item.agg$Year <- as.factor(item.agg$Year)
+item.agg$Month <- as.factor(item.agg$Month)
+
+cat.supp.agg <- aggregate(Total.Sales ~ Year + Month + Supplier + Category, data.both, sum)
+cat.supp.agg$Year <- as.factor(cat.supp.agg$Year)
+cat.supp.agg$Month <- as.factor(cat.supp.agg$Month)
+
+for(t in 1:200){
+  print(paste("loop number", t))
+  supplier.t <- supplier.best.agg[supplier.best.agg$Supplier == top10supp[t],]
+  supp.plot.t <- ggplot(supplier.t, aes(x=Month,y=Total.Sales, group = Year)) +
+    geom_line(aes(color = Year)) + ggtitle(paste("Trend Year Over Year for", supplier.t$Supplier[1]))
+  print(supp.plot.t)
+
+cat.supp.t <- cat.supp.agg[cat.supp.agg$Supplier == top10supp[t],]
+print(head(cat.supp.t))
+cat.plot.t <- ggplot(cat.supp.t, aes(x=Month,y=Total.Sales, group = Category)) +
+  geom_line(aes(color = Category)) + ggtitle(paste("Trends in Categories from", cat.supp.t$Supplier[1])) 
+  #theme(legend.position = "none")
+#print(cat.plot.t)
+
+item.supp.t <- item.agg[item.agg$Supplier == top10supp[t],]
+print(head(item.supp.t))
+item.plot.t <- ggplot(item.supp.t, aes(x=Month,y=Total.Sales, group = Item)) +
+  geom_line(aes(color = Item)) + ggtitle(paste("Trends in Items from", item.supp.t$Supplier[1])) +
+  theme(legend.position = "none")
+#print(item.plot.t)
+
+}
+
+```
+
+
+

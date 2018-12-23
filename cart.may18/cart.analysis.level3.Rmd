@@ -1,0 +1,146 @@
+---
+title: "Cart Analysis by Bin"
+author: "Allocate Analytics"
+date: "May 10, 2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+require(dplyr)
+cart.by.bin <- function(dataset, bin.max, bin.min = (bin.max-5), hier= "Department", items.to.explore = 10){
+  
+  require(knitr)
+  require(dplyr)
+  data.agg <- aggregate(Total.Sales ~ Transaction, dataset, sum)
+  #print(dim(data.agg))
+  transactions.in.bin <- filter(data.agg, Total.Sales > bin.min, Total.Sales <= bin.max)
+  #print(head(transactions.in.bin, 20))
+  
+  bin.data <- filter(dataset, Transaction %in% transactions.in.bin$Transaction) # all transactions in $5 bin
+  #print(dim(bin.data))
+  
+  bin.data$full.item <- paste0(bin.data$Description, " by ", bin.data$Supplier, " (", bin.data$Item, ")")
+  #print(head(bin.data))
+  bin.winners <- aggregate(Qty.Sold ~ full.item + Category + Department, bin.data, sum)
+  bin.winners <- arrange(bin.winners, desc(Qty.Sold))
+  
+  #print(colnames(bin.winners))
+  print(kable(bin.winners[1:20, c(1,4)], caption = "Items Sold Most Often"))
+  
+  for(i in 1:items.to.explore){
+    #print(paste("i equals", i))
+    bin.winner.i <- bin.winners[i,1]
+    #print(paste("everything linked with", bin.winner.i))
+    winner.i.trans <- bin.data %>%
+      filter(full.item == bin.winner.i) %>%
+      select(Transaction)
+    #print(head(winner.i.trans))
+    #print(class(winner.i.trans))
+    #print(dim(winner.i.trans))
+    paired.w.i <- bin.data %>%
+      filter(Transaction %in% winner.i.trans[,1]) %>%
+      filter(!full.item %in% bin.winner.i) # removes original item
+    
+    if(nrow(paired.w.i) > 0){
+      paired.test <- select(paired.w.i, Transaction, full.item, Total.Sales, Date.Sold, Qty.Sold, Department) %>%
+        arrange(Transaction)
+      #print(paired.test)
+      #print("THIS ONE:")
+      #print(str(paired.test))
+      
+      if(hier == "Department"){
+        top.pairing.i <- aggregate(Qty.Sold ~ Department, paired.w.i, sum)  
+      } else if(hier == "Category"){
+        top.pairing.i <- aggregate(Qty.Sold ~ Category, paired.w.i, sum)
+      } else {
+        top.pairing.i <- aggregate(Qty.Sold ~ full.item, paired.w.i, sum)
+      }
+      
+      top.pairing.i <- arrange(top.pairing.i, desc(Qty.Sold))
+
+      sentence <- paste0(bin.winners[i,1], ", in ", bin.winners[i,2], " within ", bin.winners[i,3], " was sold ", 
+                   bin.winners[i,4], " times and was most often paired with these:")
+      
+      df <- data.frame("Pairing for Top Item" = sentence)
+      #print(kable(df))
+      
+      #print("was sold")
+      #print(bin.winners[i,4])
+      #print("times and was most paired with these")
+      #print(head(top.pairing.i, 20))
+      print(kable(head(top.pairing.i, 20), caption = sentence))
+      
+    }else{
+      "nothing paired with it"
+    }
+    top.pairing.20 <- head(top.pairing.i, 20)
+    #kable(top.pairing.20, caption = sentence) ### How do I get kable working?
+  }
+  
+}
+
+setwd("D://Users/SPritchard/Music/Documents/R/allocate/whaletale/data and loading")
+data1 <- read.csv("ytapr.1617.csv", stringsAsFactors = FALSE)
+
+```
+
+#### Approach
+
+To analyze cart size and optimize it I looked at in a couple different ways, but the most helpful was looking at which individual items were sold the most and then look at the other departments, categories, and items in the same transactions with those top sellers.  Below are two sets of comments based on looking at departments and categories respectively.  Below that are tables that show the top 25 selling items by quantity and what else the customers bought in those transactions.
+
+#### Comments on All Transactions Linked By Departments
+
+- Number 1 most frequently purchased item is assorted postcards.  This almost certainly is due to multiple designs being in the catch-all "assorted" name, but it's still significant.  More than a third of the time these are paired with Counter Cards.  Going back to the idea that grocery stores know that "milk and eggs" are often what bring people in, so they put them to the back, this suggests to me that as much as anything it's "where can I find a nice postcard I can send from Cape May?" that brings people into the store.  I suspect this would be a useful "persona" to think of: the postcarders.  Imagine how they think and their priorities.  What's important to them?  Visualize them walking into the store.  What do they see?  What are they looking for.  Test out placing different things right beside the postcards.  Are there discounts on related items.  I'd think they're on vacation.  Could they get a discount on a book which would be a higher priced item?
+
+- The 2nd, 3rd, and 5th most purchased items were shells.  The most common thing that these buyers buy is more shells.  General Merchandise and Counter Cards are in the same transactions a significant amount for all 3 of these but far less than other shells are.
+
+#### Comments on All Transactions Linked By Categories
+
+- People who buy Assorted Cape May Postcards buy birthday cards with some frequency.  This is also the case with multiple other top selling items.  
+
+- Jewelry does seem to be bought with jewelry with a measurable frequency but it seems like this could be higher.  Out of 978 times someone bought the roll-on bracelet, there were only 51 earrings purchased.  Theis is barely 5% of the time.  Another 2% of the time, a necklace was purchased.  Are there ways of arranging the jewelry that are more conducive to pairing when people would buy a "set"?
+
+- When people are buying birthday cards, they're often buying multiple cards.  Among those who purchased the card known as Boob Scarf, the average transaction had almost three birthday cards included.  Could there be a discount on 4 or 5?  Buy 5 get the 6th free?  Birthday shows up as a frequent category in many transactions.  Are there discreet signs or messages asking whether someone they know has a birthday coming up?  From what I'm seeing, the shell buyers could be a good one to try first.
+
+- The most frequently purchased toy was the Hatchin' Grow Turtle and most often in the same transaction were more toys
+
+- Not every item has a Category so at this level there are a number of items with a blank category
+
+## Tables of All Transactions Linked By Departments
+
+```{r alltrans.dept, echo = FALSE, results='asis', message=FALSE}
+
+cart.by.bin(data1, bin.max = 200, bin.min = .01, hier = "Department", items.to.explore = 25)
+```
+
+
+
+## Tables of All Transactions Linked By Categories
+
+```{r alltrans.cat, echo = FALSE, results='asis', message=FALSE}
+
+cart.by.bin(data1, bin.max = 200, bin.min = .01, hier = "Category", items.to.explore = 25)
+```
+
+
+
+## Tables of All Transactions Linked By Items
+
+```{r alltrans.item, echo = FALSE, results='asis', message=FALSE}
+
+cart.by.bin(data1, bin.max = 200, bin.min = .01, hier = "Item", items.to.explore = 25)
+```
+
+
+```{r under20.dept, echo=FALSE, results='asis', message=FALSE}
+
+#cart.by.bin(data1, bin.max = 20, hier = "Department", items.to.explore = 10)
+
+#### Comments on Department for $15.01-$20.00 bin
+
+#- The most frequently bought item is ASSORT CM POSTCARDS which is presumably assorted post cards.  This #may be a catch-all term for multiple designs, but it's still interesting to note that in the same #transactions with this one there were 105 COUNTER CARDS purchased.  That's almost half the purchases made #of this item in this bin (218)
+```
+
+

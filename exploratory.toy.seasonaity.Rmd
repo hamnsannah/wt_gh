@@ -1,0 +1,495 @@
+---
+title: "Toys by Season"
+author: "Allocate Analytics"
+date: "April 26, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# need to get them ranked and perhaps just show the top X toys.
+
+library(dplyr)
+library(ggplot2)
+require(lubridate)
+library(plotly)
+require(knitr)
+```
+
+#### Approach
+
+I looked at the seasonality of toys from multiple different angles.  The animated seasonality plots I found less valuable for toys because the numbers sold for each one were small.  I did generate those for categories, suppliers, and the top individual toy items.
+
+Ultimately, what I'd recommend is looking at 2 things, which are represented by the tables at the bottom. The first is the top sellers in that month.  There are tables ranking the toys sold for each of the next four months by dollars.  I'd recommend making sure last year's top 10 for that month are getting prominent placement.
+
+The second is the top sellers in other peak months.  The last chart shows the rank of the top 120 toys (which is most of them) by each month.  For toys that were in the top 10 best selling toys for June, July, or Aug but not May, ask "why?".  Consider if there are ways to give those for attention from customers this May.  There may be clear reasons why the products didn't sell as well in May, but there's also likely opportunity there.
+
+
+```{r, echo=FALSE}
+setwd("D://Users/SPritchard/Music/Documents/R/allocate/whaletale/data and loading/")
+
+mutated.data1417 <- read.csv("mutated.data1417.csv", stringsAsFactors = FALSE)
+toy.data <- filter(mutated.data1417, Department == "TOYS")
+#print(dim(toy.data))
+#print(head(toy.data))
+
+toy.data17 <- filter(toy.data, Year == 2017)
+toy.month17 <- aggregate(Total.Sales ~ Month, toy.data17, sum)
+
+toy.month17$perc <- toy.month17$Total.Sales/sum(toy.month17$Total.Sales)
+#print(toy.month17)
+#print(sum(toy.month17$Total.Sales))
+
+# list with % of revenue in each month for whole business for comparison to everything else
+#portion.in.year <- as.list(c(0.01188807, 0.01836856, 0.01919061, 0.04740464, 0.07488759, 0.11941311, 0.16292754, 0.18492974, 0.13082816, 0.07987086, 0.05604979, 0.09424133))
+
+portion.in.year <- as.list(c(0.008899778, 0.015852448, 0.020072094, 0.051184084, 0.054375881, 0.116165736, 0.185899287, 0.212608229, 0.108696236, 0.066458122, 0.059140532, 0.100647574))
+
+#READ IN FUNCTIONS
+season.plotly <- function(data.object, hierarchy.for.y, hierarchy.for.filter, filter.value = "ALL", pan.season.vec){
+  # script expects data.object to be "mutated" for proper classes of columns
+  #1 calculate seasonality for the whole business
+  if(filter.value != "ALL"){
+    col.index <- data.frame("hierarchy" = colnames(data.object), "index" = 1:length(colnames(data.object)))
+    col.index.now <- col.index[col.index$hierarchy == hierarchy.for.filter,2]
+    data.object <- data.object[data.object[,col.index.now] == filter.value,]
+  }
+  
+  #2 subset data according to "hierarchy.for.filter"
+  
+  #3 process data to prepare for plotly plot animation
+  subset.sum <- sum(data.object$Total.Sales)
+  pan.season.vec <- as.vector(pan.season.vec)
+  pan.season.df <- as.data.frame(cbind("Portion.Perc" = pan.season.vec, "Month" = 1:12))
+  
+  hier.totals <- aggregate(Total.Sales ~ get(hierarchy.for.y), data.object, sum)
+  colnames(hier.totals) <- c(hierarchy.for.y, "Annual.Sales")
+
+  plot.agg1 <- aggregate(Total.Sales ~ get(hierarchy.for.y) + Month, data.object, sum)
+  colnames(plot.agg1) <- c(hierarchy.for.y, "Month", "Total.Sales")
+  unique.hier <- unique(plot.agg1[,1])
+  hier.months <- as.data.frame(cbind(rep(unique.hier,12), rep(1:12, each = length(unique.hier))))
+  colnames(hier.months) <- c(hierarchy.for.y, "Month")
+  plot.agg1 <- merge(plot.agg1, hier.months, all.y = TRUE, all.x = TRUE)
+
+  plot.agg1 <- merge(plot.agg1, pan.season.df, all.x = TRUE, all.y = TRUE)
+  plot.agg1 <- merge(plot.agg1, hier.totals, all.x = TRUE, all.y = TRUE)
+  
+  #plot.agg1 <- merge(plot.agg1, pan.season.df, all.x = TRUE, all.y = TRUE)
+  plot.agg1 <- plot.agg1 %>%
+    arrange(get(hierarchy.for.y)) %>%
+    mutate("Typical.Seasonality" = as.numeric(Annual.Sales) * as.numeric(Portion.Perc))
+
+  
+  peak.months <- c(6, 7, 8, 9)
+  data.peak <- data.object %>%
+    filter(Month %in% peak.months)
+  data.peak.agg <- aggregate(Total.Sales ~ get(hierarchy.for.y), data.peak, sum)
+
+  colnames(data.peak.agg) <- c(hierarchy.for.y, "Peak.Sales")
+  data.peak.agg <- mutate(data.peak.agg, "Peak.Sales" = data.peak.agg$Peak.Sales/4) 
+  plot.agg1 <- merge(plot.agg1, data.peak.agg, all.x = TRUE)
+  
+  #print(tail(plot.agg1))
+  
+  Total.Sales.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Total.Sales", "Peak.Sales")]
+  #Total.Sales.agg <- plot.agg1 %>% 
+  #  select(get(hierarchy.for.y), Month, Total.Sales, Peak.Sales)%>%
+  Total.Sales.agg <- Total.Sales.agg %>%
+    mutate("Color.Cat" = "Monthly Sales") %>%  ###### changed here
+    rename("Peak.Sales2" = Peak.Sales)
+    
+  Typical.Seasonality.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Typical.Seasonality", "Peak.Sales")]
+  Typical.Seasonality.agg <- Typical.Seasonality.agg %>%
+  #Typical.Seasonality.agg <- plot.agg1 %>%
+  #  select(get(hierarchy.for.y), Month, Typical.Seasonality, Peak.Sales) %>%
+    mutate("Color.Cat" = "Typical Seasonality") %>%
+    rename("Total.Sales" = "Typical.Seasonality", "Peak.Sales2" = Peak.Sales)
+  
+  Peak.Sales.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Peak.Sales")]
+  Peak.Sales.agg <- Peak.Sales.agg %>%
+  #Peak.Sales.agg <- plot.agg1 %>%
+  #  select(get(hierarchy.for.y), Month, Peak.Sales) %>%
+    mutate("Peak.Sales2" = Peak.Sales, "Color.Cat" = "Peak Sales") %>%
+    rename("Total.Sales" = "Peak.Sales")
+  
+  plot.agg.long <- rbind(Total.Sales.agg, Typical.Seasonality.agg, Peak.Sales.agg)
+  plot.agg.long[is.na(plot.agg.long)] <- 0
+  
+  plot.agg.long
+  
+  # next add plotly plot
+  
+  #hierarchy.for.y as y
+  #use frame argument
+  #Color.Cat as color
+}
+
+season.plotly.plot <- function(subsetted.df, hierarchy.for.y, hierarchy.for.filter, filter.value = "ALL"){
+  require(plotly)
+  require(dplyr)
+  plotly.scatter.anim <- subsetted.df %>%
+    #filter(Department == "COUNTER CARD") %>%
+    plot_ly(
+      x = ~Total.Sales,
+      y = ~get(hierarchy.for.y),
+      size = ~Peak.Sales2,
+      color = ~Color.Cat,
+      colors = c("#0571b0", "#ca0020",  "black"),
+      frame = ~as.numeric(Month),
+      text = ~paste("$",round(Total.Sales)),
+      hoverinfo = "text",
+      type = 'scatter',
+      mode = 'markers',
+      ids = ~get(hierarchy.for.y)
+    ) %>%
+    layout(
+      xaxis = list(type = "log",
+                   tickprefix = "$"),
+      yaxis = list(title = ""),
+      title = paste("Seasonality for", hierarchy.for.filter, filter.value),
+      margin = list(l = 200)
+        #hierarchy.for.filter # this argument isn't working
+    ) #%>%
+    #animation_opts(frame = 100)
+  plotly.scatter.anim
+}
+
+season.plotly2 <- function(data.object, hierarchy.for.y, hierarchy.for.filter, filter.value = "ALL", pan.season.vec){
+  # script expects data.object to be "mutated" for proper classes of columns
+  #1 calculate seasonality for the whole business
+  if(filter.value != "ALL"){
+    col.index <- data.frame("hierarchy" = colnames(data.object), "index" = 1:length(colnames(data.object)))
+    col.index.now <- col.index[col.index$hierarchy == hierarchy.for.filter,2]
+    data.object <- data.object[data.object[,col.index.now] == filter.value,]
+  }
+  
+  #2 subset data according to "hierarchy.for.filter"
+  
+  #3 process data to prepare for plotly plot animation
+  subset.sum <- sum(data.object$Total.Sales)
+  pan.season.vec <- as.vector(pan.season.vec)
+  pan.season.df <- as.data.frame(cbind("Portion.Perc" = pan.season.vec, "Month" = 1:12))
+  
+  hier.totals <- aggregate(Total.Sales ~ get(hierarchy.for.y), data.object, sum)
+  colnames(hier.totals) <- c(hierarchy.for.y, "Annual.Sales")
+
+  plot.agg1 <- aggregate(Total.Sales ~ get(hierarchy.for.y) + Month, data.object, sum)
+  colnames(plot.agg1) <- c(hierarchy.for.y, "Month", "Total.Sales")
+  unique.hier <- unique(plot.agg1[,1])
+  hier.months <- as.data.frame(cbind(rep(unique.hier,12), rep(1:12, each = length(unique.hier))))
+  colnames(hier.months) <- c(hierarchy.for.y, "Month")
+  plot.agg1 <- merge(plot.agg1, hier.months, all.y = TRUE, all.x = TRUE)
+
+  plot.agg1 <- merge(plot.agg1, pan.season.df, all.x = TRUE, all.y = TRUE)
+  plot.agg1 <- merge(plot.agg1, hier.totals, all.x = TRUE, all.y = TRUE)
+  
+  #plot.agg1 <- merge(plot.agg1, pan.season.df, all.x = TRUE, all.y = TRUE)
+  plot.agg1 <- plot.agg1 %>%
+    arrange(get(hierarchy.for.y)) %>%
+    mutate("Typical.Seasonality" = as.numeric(Annual.Sales) * as.numeric(Portion.Perc))
+
+  
+  peak.months <- c(6, 7, 8, 9)
+  data.peak <- data.object %>%
+    filter(Month %in% peak.months)
+  data.peak.agg <- aggregate(Total.Sales ~ get(hierarchy.for.y), data.peak, sum)
+
+  colnames(data.peak.agg) <- c(hierarchy.for.y, "Peak.Sales")
+  data.peak.agg <- mutate(data.peak.agg, "Peak.Sales" = data.peak.agg$Peak.Sales/4) 
+  plot.agg1 <- merge(plot.agg1, data.peak.agg, all.x = TRUE)
+  
+  #print(tail(plot.agg1))
+  
+  Total.Sales.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Total.Sales", "Peak.Sales")]
+  #Total.Sales.agg <- plot.agg1 %>% 
+  #  select(get(hierarchy.for.y), Month, Total.Sales, Peak.Sales)%>%
+  Total.Sales.agg <- Total.Sales.agg %>%
+    mutate("Color.Cat" = "Monthly Sales") %>%  ###### changed here
+    rename("Peak.Sales2" = Peak.Sales)
+    
+  Typical.Seasonality.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Typical.Seasonality", "Peak.Sales")]
+  Typical.Seasonality.agg <- Typical.Seasonality.agg %>%
+  #Typical.Seasonality.agg <- plot.agg1 %>%
+  #  select(get(hierarchy.for.y), Month, Typical.Seasonality, Peak.Sales) %>%
+    mutate("Color.Cat" = "Typical Seasonality") %>%
+    rename("Total.Sales" = "Typical.Seasonality", "Peak.Sales2" = Peak.Sales)
+  
+  Peak.Sales.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Peak.Sales")]
+  Peak.Sales.agg <- Peak.Sales.agg %>%
+  #Peak.Sales.agg <- plot.agg1 %>%
+  #  select(get(hierarchy.for.y), Month, Peak.Sales) %>%
+    mutate("Peak.Sales2" = Peak.Sales, "Color.Cat" = "Peak Sales") %>%
+    rename("Total.Sales" = "Peak.Sales")
+  
+  plot.agg.long <- rbind(Total.Sales.agg, Typical.Seasonality.agg, Peak.Sales.agg)
+  plot.agg.long[is.na(plot.agg.long)] <- 0
+  
+  ## HERE'S THE NEW PART FOR ORDERING
+  
+  plot.agg.long <- arrange(plot.agg.long, Peak.Sales2)
+  plot.agg.long[,1] <- factor(plot.agg.long[,1], levels = unique(plot.agg.long[,1]))
+  
+  plot.agg.long
+  
+  
+  # next add plotly plot
+  
+  #hierarchy.for.y as y
+  #use frame argument
+  #Color.Cat as color
+}
+```
+
+### Toys by Category
+
+```{r toys.by.cat, echo=FALSE, fig.height=8}
+
+subsetted.df <- season.plotly2(data.object = toy.data17, hierarchy.for.y = "Category", hierarchy.for.filter = "Department", filter.value = "TOYS", pan.season.vec = portion.in.year)
+
+season.plotly.plot(subsetted.df = subsetted.df, hierarchy.for.y = "Category", hierarchy.for.filter = "Department", filter.value = "TOYS")
+
+```
+
+### Toys by Supplier
+
+```{r toys.by.supplier, echo=FALSE, fig.height=12}
+
+subsetted.df <- season.plotly2(data.object = toy.data17, hierarchy.for.y = "Supplier", hierarchy.for.filter = "Department", filter.value = "TOYS", pan.season.vec = portion.in.year)
+
+
+
+season.plotly.plot(subsetted.df = subsetted.df, hierarchy.for.y = "Supplier", hierarchy.for.filter = "Department", filter.value = "TOYS")
+
+```
+
+### Toys by Description
+
+```{r toys.by.desc, echo=FALSE, fig.height=30, fig.width=12}
+
+season.plotly3 <- function(data.object, hierarchy.for.y, hierarchy.for.filter, filter.value = "ALL", pan.season.vec){
+  # function creates data frame to prepare format "DESCRIPTION by SUPPLIER (ITEM NUM)"
+  # script expects data.object to be "mutated" for proper classes of columns
+  #1 calculate seasonality for the whole business
+  if(filter.value != "ALL"){
+    col.index <- data.frame("hierarchy" = colnames(data.object), "index" = 1:length(colnames(data.object)))
+    col.index.now <- col.index[col.index$hierarchy == hierarchy.for.filter,2]
+    data.object <- data.object[data.object[,col.index.now] == filter.value,]
+  }
+  
+  #2 subset data according to "hierarchy.for.filter"
+  
+  #3 process data to prepare for plotly plot animation
+  subset.sum <- sum(data.object$Total.Sales)
+  pan.season.vec <- as.vector(pan.season.vec)
+  pan.season.df <- as.data.frame(cbind("Portion.Perc" = pan.season.vec, "Month" = 1:12))
+  
+  hier.totals <- aggregate(Total.Sales ~ get(hierarchy.for.y), data.object, sum)
+  colnames(hier.totals) <- c(hierarchy.for.y, "Annual.Sales")
+
+  plot.agg1 <- aggregate(Total.Sales ~ get(hierarchy.for.y) + Month, data.object, sum)
+  colnames(plot.agg1) <- c(hierarchy.for.y, "Month", "Total.Sales")
+  unique.hier <- unique(plot.agg1[,1])
+  hier.months <- as.data.frame(cbind(rep(unique.hier,12), rep(1:12, each = length(unique.hier))))
+  colnames(hier.months) <- c(hierarchy.for.y, "Month")
+  plot.agg1 <- merge(plot.agg1, hier.months, all.y = TRUE, all.x = TRUE)
+
+  plot.agg1 <- merge(plot.agg1, pan.season.df, all.x = TRUE, all.y = TRUE)
+  plot.agg1 <- merge(plot.agg1, hier.totals, all.x = TRUE, all.y = TRUE)
+  
+  #plot.agg1 <- merge(plot.agg1, pan.season.df, all.x = TRUE, all.y = TRUE)
+  plot.agg1 <- plot.agg1 %>%
+    arrange(get(hierarchy.for.y)) %>%
+    mutate("Typical.Seasonality" = as.numeric(Annual.Sales) * as.numeric(Portion.Perc))
+
+  
+  peak.months <- c(6, 7, 8, 9)
+  data.peak <- data.object %>%
+    filter(Month %in% peak.months)
+  data.peak.agg <- aggregate(Total.Sales ~ get(hierarchy.for.y), data.peak, sum)
+
+  colnames(data.peak.agg) <- c(hierarchy.for.y, "Peak.Sales")
+  data.peak.agg <- mutate(data.peak.agg, "Peak.Sales" = data.peak.agg$Peak.Sales/4) 
+  plot.agg1 <- merge(plot.agg1, data.peak.agg, all.x = TRUE)
+  
+  #print(tail(plot.agg1))
+  
+  Total.Sales.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Total.Sales", "Peak.Sales")]
+  #Total.Sales.agg <- plot.agg1 %>% 
+  #  select(get(hierarchy.for.y), Month, Total.Sales, Peak.Sales)%>%
+  Total.Sales.agg <- Total.Sales.agg %>%
+    mutate("Color.Cat" = "Monthly Sales") %>%  ###### changed here
+    rename("Peak.Sales2" = Peak.Sales)
+    
+  Typical.Seasonality.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Typical.Seasonality", "Peak.Sales")]
+  Typical.Seasonality.agg <- Typical.Seasonality.agg %>%
+  #Typical.Seasonality.agg <- plot.agg1 %>%
+  #  select(get(hierarchy.for.y), Month, Typical.Seasonality, Peak.Sales) %>%
+    mutate("Color.Cat" = "Typical Seasonality") %>%
+    rename("Total.Sales" = "Typical.Seasonality", "Peak.Sales2" = Peak.Sales)
+  
+  Peak.Sales.agg <- plot.agg1[,colnames(plot.agg1) %in% c(hierarchy.for.y, "Month", "Peak.Sales")]
+  Peak.Sales.agg <- Peak.Sales.agg %>%
+  #Peak.Sales.agg <- plot.agg1 %>%
+  #  select(get(hierarchy.for.y), Month, Peak.Sales) %>%
+    mutate("Peak.Sales2" = Peak.Sales, "Color.Cat" = "Peak Sales") %>%
+    rename("Total.Sales" = "Peak.Sales")
+  
+  plot.agg.long <- rbind(Total.Sales.agg, Typical.Seasonality.agg, Peak.Sales.agg)
+  plot.agg.long[is.na(plot.agg.long)] <- 0
+  
+  #full.item.names <- data.object %>%
+  # filter(!duplicated(Item))
+  
+  #data.object.hier <- data.object[unique(data.object$Item),colnames(data.object) %in% c("Description", "Item", "Supplier")]
+  data.object.hier <- data.object[,colnames(data.object) %in% c("Description", "Item", "Supplier")]
+  data.object.hier <- unique(data.object.hier)
+  
+data.object.hier$full.item.name <- paste0(data.object.hier$Description, " by ",
+                                     data.object.hier$Supplier, " (",
+                                     data.object.hier$Item, ") ")
+#print(head(data.object.hier, 20))
+#print(head(plot.agg.long, 10))
+
+  plot.agg.long <- merge(plot.agg.long, data.object.hier, all.x = TRUE)
+  
+  ## HERE'S THE NEW PART FOR ORDERING
+  
+  plot.agg.long <- arrange(plot.agg.long, Peak.Sales2)
+  plot.agg.long$full.item.name <- factor(plot.agg.long$full.item.name, levels = unique(plot.agg.long$full.item.name))
+  
+  plot.agg.long
+  
+  
+  # next add plotly plot
+  
+  #hierarchy.for.y as y
+  #use frame argument
+  #Color.Cat as color
+}
+
+season.plotly.plot3 <- function(subsetted.df, hierarchy.for.y, hierarchy.for.filter, filter.value = "ALL"){
+  require(plotly)
+  require(dplyr)
+  plotly.scatter.anim <- subsetted.df %>%
+    #filter(Department == "COUNTER CARD") %>%
+    plot_ly(
+      x = ~Total.Sales,
+      y = ~full.item.name,
+      size = ~Peak.Sales2,
+      color = ~Color.Cat,
+      colors = c("#0571b0", "#ca0020",  "black"),
+      frame = ~as.numeric(Month),
+      text = ~paste("$",round(Total.Sales)),
+      hoverinfo = "text",
+      type = 'scatter',
+      mode = 'markers',
+      ids = ~get(hierarchy.for.y)
+    ) %>%
+    layout(
+      xaxis = list(type = "log",
+                   tickprefix = "$"),
+      yaxis = list(title = ""),
+      title = paste("Seasonality for", hierarchy.for.filter, filter.value),
+      margin = list(l = 550)
+        #hierarchy.for.filter # this argument isn't working
+    ) #%>%
+    #animation_opts(frame = 100)
+  plotly.scatter.anim
+}
+
+
+subsetted.df <- season.plotly3(data.object = toy.data17, hierarchy.for.y = "Description", hierarchy.for.filter = "Department", filter.value = "TOYS", pan.season.vec = portion.in.year)
+
+#print(nrow(subsetted.df))
+#subsetted.df <- subsetted.df[1:(12*150),]
+subsetted.df <- subsetted.df[(nrow(subsetted.df)-(36*120)):nrow(subsetted.df),]
+#print(head(subsetted.df, 50))
+#print(nrow(subsetted.df))
+
+season.plotly.plot3(subsetted.df = subsetted.df, hierarchy.for.y = "Description", hierarchy.for.filter = "Department", filter.value = "TOYS")
+
+```
+
+### Top Toys by Month
+
+#### May 2017
+
+```{r monthly.table, echo=FALSE}
+subsetted.df$Peak.Sales2 <- round(subsetted.df$Peak.Sales2, 2)
+
+may.sub <- subsetted.df %>%
+  filter(Month == 5, Color.Cat == "Monthly Sales") %>%
+  arrange(desc(Total.Sales)) %>%
+  select(full.item.name, Total.Sales, Peak.Sales2) %>%
+  rename("Toy" = full.item.name, "Monthly Sales" = Total.Sales, "Peak Sales" = Peak.Sales2)
+#print(head(may.sub))
+kable(head(may.sub, 25))
+
+may.sub$may.rank <- 1:nrow(may.sub)
+may.rank <- select(may.sub, `Toy`, may.rank)
+```
+
+#### June 2017
+
+```{r, echo=FALSE}
+june.sub <- subsetted.df %>%
+  filter(Month == 6, Color.Cat == "Monthly Sales") %>%
+  arrange(desc(Total.Sales)) %>%
+  select(full.item.name, Total.Sales, Peak.Sales2) %>%
+  rename("Toy" = full.item.name, "Monthly Sales" = Total.Sales, "Peak Sales" = Peak.Sales2)
+kable(head(june.sub, 25))
+
+june.sub$june.rank <- 1:nrow(june.sub)
+june.rank <- select(june.sub, `Toy`, june.rank)
+```
+
+#### July 2017
+
+```{r, echo=FALSE}
+july.sub <- subsetted.df %>%
+  filter(Month == 7, Color.Cat == "Monthly Sales") %>%
+  arrange(desc(Total.Sales)) %>%
+  select(full.item.name, Total.Sales, Peak.Sales2) %>%
+  rename("Toy" = full.item.name, "Monthly Sales" = Total.Sales, "Peak Sales" = Peak.Sales2)
+kable(head(july.sub, 25))
+
+july.sub$july.rank <- 1:nrow(july.sub)
+july.rank <- select(july.sub, `Toy`, july.rank)
+```
+
+#### Aug 2017
+
+```{r, echo=FALSE}
+aug.sub <- subsetted.df %>%
+  filter(Month == 8, Color.Cat == "Monthly Sales") %>%
+  arrange(desc(Total.Sales)) %>%
+  select(full.item.name, Total.Sales, Peak.Sales2) %>%
+  rename("Toy" = full.item.name, "Monthly Sales" = Total.Sales, "Peak Sales" = Peak.Sales2)
+kable(head(aug.sub, 25))
+
+aug.sub$aug.rank <- 1:nrow(aug.sub)
+aug.rank <- select(aug.sub, `Toy`, aug.rank)
+
+
+ranks1 <- merge(may.rank, june.rank, all.x = TRUE, all.y = TRUE)
+ranks2 <- merge(ranks1, july.rank, all.x = TRUE, all.y = TRUE)
+ranks3 <- merge(ranks2, aug.rank, all.x = TRUE, all.y = TRUE)
+ranks3 <- arrange(ranks3, aug.rank)
+#print(head(ranks3, 20))
+kable(ranks3)
+```
+
+
+
+```{r toys.by.item, echo=FALSE, fig.height=20}
+### Toys by Item
+
+# This is just too granular so don't use it.  It's a mess.
+
+#subsetted.df <- season.plotly(data.object = toy.data17, hierarchy.for.y = "Item", hierarchy.for.filter = "Department", filter.value = "TOYS", pan.season.vec = portion.in.year)
+
+#season.plotly.plot(subsetted.df = subsetted.df, hierarchy.for.y = "Item", hierarchy.for.filter = "Department", filter.value = "TOYS")
+
+```

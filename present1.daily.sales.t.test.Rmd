@@ -1,0 +1,511 @@
+---
+title: "Examples of AB Testing"
+author: "Sam Pritchard"
+date: "December 26, 2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+require(dplyr)
+require(ggplot2)
+require(lubridate)
+
+data17 <- read.csv("Detailed Sales Report 17.csv", stringsAsFactors = FALSE)
+data16 <- read.csv("Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
+
+data.both <- rbind(data17, data16)
+data.both$Total.Sales <- as.numeric(data.both$Total.Sales)
+data.both <- filter(data.both, !is.na(Total.Sales)) #removes the sums that had $ signs in them
+print(paste("sum of Total.Sales is", sum(data.both$Total.Sales)))
+data.both$Date.Sold <- mdy_hm(data.both$Date.Sold)
+data.both$Date <- as_date(data.both$Date.Sold)
+data.both$Year <- year(data.both$Date.Sold)
+data.both$Month <- month(data.both$Date.Sold)
+data.both$Department <- trimws(data.both$Department)
+data.both$Category <- trimws(data.both$Category)
+data.both$Supplier <- trimws(data.both$Supplier)
+data.both$Item <- trimws(data.both$Item)
+data.both$Year.Month <- as.numeric(paste0(substr(data.both$Year,3,4), data.both$Month))
+data.both$Year.Month <- as.factor(data.both$Year.Month)
+
+supplier.agg <- aggregate(Total.Sales ~ Year + Supplier, data.both, sum)
+supplier.agg <- supplier.agg %>% filter(Year == 2016) %>% arrange(desc(Total.Sales))
+print(paste("total suppliers in 16=", nrow(supplier.agg)))
+top10supp <- unique(trimws(supplier.agg$Supplier)) ### add back in subset [1:43] for true top 10%
+supplier.agg$Supplier <- as.factor(supplier.agg$Supplier)
+print(head(supplier.agg))
+print(dim(supplier.agg))
+supplier.time.agg <- aggregate(Total.Sales ~ Year + Month + Supplier, data.both, sum)
+supplier.best.agg <- filter(supplier.time.agg, Supplier %in% top10supp)
+supplier.best.agg$Year <- as.factor(supplier.best.agg$Year)
+supplier.best.agg$Month <- as.factor(supplier.best.agg$Month)
+
+item.agg <- aggregate(Total.Sales ~ Year + Month + Supplier + Item, data.both, sum)
+item.agg$Year <- as.factor(item.agg$Year)
+item.agg$Month <- as.factor(item.agg$Month)
+
+cat.supp.agg <- aggregate(Total.Sales ~ Year + Month + Supplier + Category, data.both, sum)
+cat.supp.agg$Year <- as.factor(cat.supp.agg$Year)
+cat.supp.agg$Month <- as.factor(cat.supp.agg$Month)
+
+t.test.arrow <- function(data.a.baseline, data.b.comparison){
+  
+  conf.df <- data.frame()
+  
+  for(i in 1:length(data.a.baseline)){
+    b.comp <- data.b.comparison[1:(i+1)]
+    a.base <- data.a.baseline[1:(i+1)]
+    conf.int95.i <- t.test(b.comp, a.base, conf.level = 0.95)$conf.int
+    conf.int85.i <- t.test(b.comp, a.base, conf.level = 0.85)$conf.int
+    conf.int75.i <- t.test(b.comp, a.base, conf.level = 0.75)$conf.int
+    three.conf.int.i <- c(conf.int95.i, conf.int85.i, conf.int75.i)
+    conf.df <- rbind(conf.df, three.conf.int.i)
+  }
+  conf.df$deg.free <- seq(nrow(conf.df))
+  colnames(conf.df) <- c("low95", "high95", "low85", "high85", "low75", "high75", "deg.free")
+  
+  # create dark green arrow down
+  
+  arrow.dgreen.down <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#003300", size=2) +
+    geom_segment(x=1, xend=1.5, y=0, yend=.5, color="#003300", size=2) +
+    geom_segment(x=0.5, xend=1, y=0.5, yend=0, color="#003300", size=2)
+  
+  # create dark green arrow up
+  
+  arrow.dgreen.up <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#003300", size=2) +
+    geom_segment(x=1, xend=1.5, y=2, yend=1.5, color="#003300", size=2) +
+    geom_segment(x=0.5, xend=1, y=1.5, yend=2, color="#003300", size=2)
+  
+  # create light green arrow down
+  
+  arrow.lgreen.down <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#33CC00", size=2) +
+    geom_segment(x=1, xend=1.5, y=0, yend=.5, color="#33CC00", size=2) +
+    geom_segment(x=0.5, xend=1, y=0.5, yend=0, color="#33CC00", size=2)
+  
+  # create light green arrow up
+  
+  arrow.lgreen.up <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#33CC00", size=2) +
+    geom_segment(x=1, xend=1.5, y=2, yend=1.5, color="#33CC00", size=2) +
+    geom_segment(x=0.5, xend=1, y=1.5, yend=2, color="#33CC00", size=2)
+  
+  # create yellow green arrow down
+  
+  arrow.ygreen.down <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#CCFF33", size=2) +
+    geom_segment(x=1, xend=1.5, y=0, yend=.5, color="#CCFF33", size=2) +
+    geom_segment(x=0.5, xend=1, y=0.5, yend=0, color="#CCFF33", size=2)
+  
+  # create yellow green arrow up
+  
+  arrow.ygreen.up <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#CCFF33", size=2) +
+    geom_segment(x=1, xend=1.5, y=2, yend=1.5, color="#CCFF33", size=2) +
+    geom_segment(x=0.5, xend=1, y=1.5, yend=2, color="#CCFF33", size=2)
+  
+  # print a question mark
+  q.mark <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_text(aes(x=x, y=y,label="?"), size=50) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          text = element_blank())
+  
+  # determine which arrow should be printed
+  
+  if(tail(conf.df$low95,1) <0 & 
+     tail(conf.df$high95,1)<0){
+    print(arrow.dgreen.down)
+  } else if(tail(conf.df$low95,1) >0 & 
+            tail(conf.df$high95,1)>0){
+    print(arrow.dgreen.up)
+  } else if(tail(conf.df$low85,1) <0 & 
+            tail(conf.df$high85,1)<0){
+    print(arrow.lgreen.down)
+  } else if(tail(conf.df$low85,1) >0 & 
+            tail(conf.df$high85,1)>0){
+    print(arrow.lgreen.up)
+  } else if(tail(conf.df$low75,1) <0 & 
+            tail(conf.df$high75,1)<0){
+    print(arrow.ygreen.down)
+  } else if(tail(conf.df$low75,1) >0 & 
+            tail(conf.df$high75,1)>0){
+    print(arrow.ygreen.up)
+  } else {
+    print(q.mark)
+  }
+  #to avoid any unintended output
+  #print("see plot for arrow direction and color, or question mark if difference can't be conclusively calculated")
+  #print("dark green means 95% confidence, light green means 85% confidence, yellow green means 75% confidence")
+  }
+
+t.test.3x.conf <- function(data.a.baseline, data.b.comparison){
+  
+  conf.df <- data.frame()
+  
+  for(i in 1:length(data.a.baseline)){
+    b.comp <- data.b.comparison[1:(i+1)]
+    a.base <- data.a.baseline[1:(i+1)]
+    conf.int95.i <- t.test(b.comp, a.base, conf.level = 0.95)$conf.int
+    conf.int85.i <- t.test(b.comp, a.base, conf.level = 0.85)$conf.int
+    conf.int75.i <- t.test(b.comp, a.base, conf.level = 0.75)$conf.int
+    three.conf.int.i <- c(conf.int95.i, conf.int85.i, conf.int75.i)
+    conf.df <- rbind(conf.df, three.conf.int.i)
+  }
+  conf.df$deg.free <- seq(nrow(conf.df))
+  colnames(conf.df) <- c("low95", "high95", "low85", "high85", "low75", "high75", "deg.free")
+  
+  three.plot <- ggplot(conf.df, aes(x=deg.free)) +
+    geom_point(aes(y=low95))+
+    geom_point(aes(y=high95))+
+    geom_ribbon(aes(ymin=low95, ymax=high95), fill="#003300")+
+    geom_ribbon(aes(ymin=low85, ymax=high85), fill="#33CC00")+
+    geom_ribbon(aes(ymin=low75, ymax=high75), fill="#CCFF33")+
+    geom_segment(x=0, xend=length(data.a.baseline), y=0, yend=0, color="yellow", size=2) +
+    labs(x= "Number of Data Points Included", y="Range of Difference Between True Means of A & B",
+         title="AB Test Progress with 95%, 85%, & 75% Confidence Intervals",
+         subtitle="There is a statistically significant difference \n between A & B when colored area breaks away from yellow line \n Dark Green = 95% confidence, Light Green = 85% confidence, Yellow Green = 75% confidence")
+  print(three.plot)
+}
+
+ab.trail <- function(data.a.baseline, data.b.comparison){
+  
+  conf.df <- data.frame()
+  
+  for(i in 1:length(data.a.baseline)){
+    b.comp <- data.b.comparison[1:(i+1)]
+    a.base <- data.a.baseline[1:(i+1)]
+    
+    a.estimate95.i <- t.test(a.base, conf.level = 0.95)$estimate
+    a.conf.int95.i <- t.test(a.base, conf.level = 0.95)$conf.int
+    a.conf.int85.i <- t.test(a.base, conf.level = 0.85)$conf.int
+    a.conf.int75.i <- t.test(a.base, conf.level = 0.75)$conf.int
+    
+    b.estimate95.i <- t.test(b.comp, conf.level = 0.95)$estimate
+    b.conf.int95.i <- t.test(b.comp, conf.level = 0.95)$conf.int
+    b.conf.int85.i <- t.test(b.comp, conf.level = 0.85)$conf.int
+    b.conf.int75.i <- t.test(b.comp, conf.level = 0.75)$conf.int
+    three.conf.int.i <- c(a.estimate95.i, a.conf.int95.i, a.conf.int85.i, a.conf.int75.i, 
+                          b.estimate95.i, b.conf.int95.i, b.conf.int85.i, b.conf.int75.i)
+    conf.df <- rbind(conf.df, three.conf.int.i)
+  }
+  conf.df$deg.free <- seq(nrow(conf.df))
+  colnames(conf.df) <- c("a.estimate", "a.low95", "a.high95", "a.low85", "a.high85", "a.low75", "a.high75", 
+                         "b.estimate", "b.low95", "b.high95", "b.low85", "b.high85", "b.low75", "b.high75", "deg.free")
+  conf.df <- conf.df[-1,]
+  #print(head(conf.df))
+  three.plot <- ggplot(conf.df, aes(x=deg.free)) +
+    #geom_point(aes(y=low95))+
+    #geom_point(aes(y=high95))+
+  #A plot in blues
+    geom_ribbon(aes(ymin=a.low95, ymax=a.high95), fill="#6baed6", alpha = .6)+
+    #geom_ribbon(aes(ymin=a.low85, ymax=a.high85), fill="#bdd7e7", alpha = .6)+
+    geom_ribbon(aes(ymin=a.low75, ymax=a.high75), fill="#eff3ff", alpha = .6)+
+    geom_ribbon(aes(ymin=(a.estimate-1), ymax=(a.estimate+1)), fill="#2171b5")+
+    
+  #B plot in reds
+    geom_ribbon(aes(ymin=b.low95, ymax=b.high95), fill="#fb6a4a", alpha = .6)+
+    #geom_ribbon(aes(ymin=b.low85, ymax=b.high85), fill="#fcae91", alpha = .6)+
+    geom_ribbon(aes(ymin=b.low75, ymax=b.high75), fill="#fee5d9", alpha = .6)+
+    geom_ribbon(aes(ymin=(b.estimate-1), ymax=(b.estimate+1)), fill="#cb181d")+
+    #geom_segment(x=0, xend=length(data.a.baseline), y=0, yend=0, color="yellow", size=2) +
+    labs(x= "Number of Data Points Included", y="Range of Difference Between True Means of A & B",
+         title="AB Test Progress with 95% & 75% Confidence Intervals",
+         subtitle="Lines show average of A (blue) and B (red) and \n ribbons show possible variation of that average at 75% and 95% confidence")
+  print(three.plot)
+}
+
+t.test.arrow.blue <- function(data.a.baseline, data.b.comparison){
+  
+  conf.df <- data.frame()
+  
+  for(i in 1:length(data.a.baseline)){
+    b.comp <- data.b.comparison[1:(i+1)]
+    a.base <- data.a.baseline[1:(i+1)]
+    conf.int95.i <- t.test(b.comp, a.base, conf.level = 0.95)$conf.int
+    conf.int85.i <- t.test(b.comp, a.base, conf.level = 0.85)$conf.int
+    conf.int75.i <- t.test(b.comp, a.base, conf.level = 0.75)$conf.int
+    three.conf.int.i <- c(conf.int95.i, conf.int85.i, conf.int75.i)
+    conf.df <- rbind(conf.df, three.conf.int.i)
+  }
+  conf.df$deg.free <- seq(nrow(conf.df))
+  colnames(conf.df) <- c("low95", "high95", "low85", "high85", "low75", "high75", "deg.free")
+  
+  # create dark blue arrow down
+  
+  arrow.dblue.down <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#6baed6", size=2) +
+    geom_segment(x=1, xend=1.5, y=0, yend=.5, color="#6baed6", size=2) +
+    geom_segment(x=0.5, xend=1, y=0.5, yend=0, color="#6baed6", size=2)
+  
+  # create dark blue arrow up
+  
+  arrow.dblue.up <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#6baed6", size=2) +
+    geom_segment(x=1, xend=1.5, y=2, yend=1.5, color="#6baed6", size=2) +
+    geom_segment(x=0.5, xend=1, y=1.5, yend=2, color="#6baed6", size=2)
+  
+  # create medium blue arrow down
+  
+  arrow.mblue.down <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#bdd7e7", size=2) +
+    geom_segment(x=1, xend=1.5, y=0, yend=.5, color="#bdd7e7", size=2) +
+    geom_segment(x=0.5, xend=1, y=0.5, yend=0, color="#bdd7e7", size=2)
+  
+  # create medium blue arrow up
+  
+  arrow.mblue.up <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#bdd7e7", size=2) +
+    geom_segment(x=1, xend=1.5, y=2, yend=1.5, color="#bdd7e7", size=2) +
+    geom_segment(x=0.5, xend=1, y=1.5, yend=2, color="#bdd7e7", size=2)
+  
+  # create light blue arrow down
+  
+  arrow.lblue.down <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#eff3ff", size=2) +
+    geom_segment(x=1, xend=1.5, y=0, yend=.5, color="#eff3ff", size=2) +
+    geom_segment(x=0.5, xend=1, y=0.5, yend=0, color="#eff3ff", size=2)
+  
+  # create light blue arrow up
+  
+  arrow.lblue.up <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank()) + 
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_segment(x=1, xend=1, y=0, yend=2, color="#eff3ff", size=2) +
+    geom_segment(x=1, xend=1.5, y=2, yend=1.5, color="#eff3ff", size=2) +
+    geom_segment(x=0.5, xend=1, y=1.5, yend=2, color="#eff3ff", size=2)
+  
+  # print a question mark
+  q.mark <- ggplot(data=data.frame("x"= 1, "y"=1)) +
+    xlim(0,2) +
+    ylim(0,2) +
+    geom_text(aes(x=x, y=y,label="?"), size=50) +
+    theme(panel.background = element_rect(fill = "#FFFFFF", color="black"), 
+          axis.text = element_blank(),
+          axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          text = element_blank())
+  
+  # determine which arrow should be printed
+  
+  if(tail(conf.df$low95,1) <0 & 
+     tail(conf.df$high95,1)<0){
+    print(arrow.dblue.down)
+  } else if(tail(conf.df$low95,1) >0 & 
+            tail(conf.df$high95,1)>0){
+    print(arrow.dblue.up)
+  } else if(tail(conf.df$low85,1) <0 & 
+            tail(conf.df$high85,1)<0){
+    print(arrow.mblue.down)
+  } else if(tail(conf.df$low85,1) >0 & 
+            tail(conf.df$high85,1)>0){
+    print(arrow.mblue.up)
+  } else if(tail(conf.df$low75,1) <0 & 
+            tail(conf.df$high75,1)<0){
+    print(arrow.lblue.down)
+  } else if(tail(conf.df$low75,1) >0 & 
+            tail(conf.df$high75,1)>0){
+    print(arrow.lblue.up)
+  } else {
+    print(q.mark)
+  }
+  #to avoid any unintended output
+  #print("see plot for arrow direction and color, or question mark if difference can't be conclusively calculated")
+  #print("dark green means 95% confidence, light green means 85% confidence, yellow green means 75% confidence")
+  }
+
+```
+## Headline:
+### In our last conversation, Colin asked if I could help make it easier to do AB tests; comparing the results of 2 options.  This document lays out a general direction for how I can help you do AB tests.  Essentially, I plan to set up a website that would allow you to compare almost anything with anything.  Below I show the two main components I'm planning to use for that site: the AB Arrow and AB Trails.
+
+## Demonstrating AB Test Visualizations
+### Scenario 1: Sellers Publishing in June-Sept 2016 vs. 2017
+
+As shown below 2017 lagged behind 2016 significantly.  If we were to do an AB test using something called a T-Test, how soon could we determine 2017 was lagging?  This same T-Test approach can be used in comparing a new supplier with an existing one, comparing a pricing change to the status quo, etc.  Scroll down for more.
+
+```{r, echo=FALSE}
+
+t <- 6
+
+  supplier.t <- supplier.best.agg[supplier.best.agg$Supplier == top10supp[t],]
+  supp.plot.t <- ggplot(supplier.t, aes(x=Month,y=Total.Sales, group = Year)) +
+    geom_line(aes(color = Year)) + ggtitle(paste("Trend Year Over Year for", supplier.t$Supplier[1]))+
+    scale_color_manual(values=c("blue", "red"))
+  print(supp.plot.t)
+
+```
+
+
+
+
+
+
+### AB Test Arrow
+
+The AB Arrow answers the question "Is B better or worse than A, or is it too close to call?"  It can answer this question in five possible ways
+
+1. B is better with 95% certainty -> Medium Blue Arrow Up
+2. B is worse with 95% certainty -> Medium Blue Arrow Down
+3. B is better with 75% certainty -> Light Blue Arrow Up
+4. B is worse with 75% certainty -> Light Blue Arrow Down
+5. B is too similar to A to decide -> Question Mark
+
+I plan to make the AB Arrow available for any AB test you'd like to do by selecting a couple pieces of information
+
+Here's the AB Arrow for Sellers Publishing June-Sep 2016 (A) vs. 2017 (B)
+(as we saw above, 2017 was significantly lower, so the medium blue down arrow down makes sense)
+
+```{r, echo=FALSE, fig.height=2, fig.width=2}
+
+sellers.pub <- filter(data.both, Supplier == "SELLERS PUBLISHING, INC.")
+sellers.pub.agg <- aggregate(Total.Sales ~ Date + Month + Year, sellers.pub, sum)
+sellers.pub.agg17 <- filter(sellers.pub.agg, Month >= 6, Month <= 9, Year == 2017)
+sellers.pub.agg16 <- filter(sellers.pub.agg, Month >= 6, Month <= 9, Year == 2016)
+
+t.test.arrow.blue(sellers.pub.agg16$Total.Sales, sellers.pub.agg17$Total.Sales)
+
+
+```
+
+## Visualization of how the AB Test unfolds with each new day of data
+
+```{r, echo=FALSE}
+
+ab.trail(sellers.pub.agg16$Total.Sales, sellers.pub.agg17$Total.Sales)
+
+```
+
+\newpage
+
+# Acomo Jewelry
+
+## Demonstrating AB Test Visualizations
+### Scenario 2: Acomo Jewelry in June-Sept 2016 vs. 2017
+
+The daily sales rate of Acomo Jewelry through the Summer was very similar in 2017 to its rate in 2016.  This will mean the AB test will be unable to pick a winner, but this can be a useful finding as well.
+
+```{r, echo=FALSE}
+
+t <- 7
+
+  supplier.t <- supplier.best.agg[supplier.best.agg$Supplier == top10supp[t],]
+  supp.plot.t <- ggplot(supplier.t, aes(x=Month,y=Total.Sales, group = Year)) +
+    geom_line(aes(color = Year)) + ggtitle(paste("Trend Year Over Year for", supplier.t$Supplier[1])) +
+    scale_color_manual(values=c("blue", "red"))
+  print(supp.plot.t)
+  
+acomo <- filter(data.both, Supplier == "ACOMO JEWELRY")
+acomo.agg <- aggregate(Total.Sales ~ Date + Month + Year, acomo, sum)
+#hist.plot <- hist(sellers.pub.agg$Total.Sales, breaks=20)
+#print(hist.plot)
+
+acomo.agg17 <- filter(acomo.agg, Month >= 6, Month <= 9, Year == 2017)
+acomo.agg16 <- filter(acomo.agg, Month >= 6, Month <= 9, Year == 2016)
+#acomo.plot17 <- hist(acomo.agg17$Total.Sales, breaks=20)
+#print(acomo.plot17)
+
+#acomo.plot16 <- hist(acomo.agg16$Total.Sales, breaks=20)
+#print(acomo.plot16)
+
+```
+
+\newpage
+
+## AB Arrow for Acomo Jewelry June-Sept 2016 (A) vs. 2017 (B)
+
+The AB Arrow is a question mark because the means of the daily sales rate are too similar to pick a winner statistically.  This fits with the trend shown in the previous line graph where the lines followed each other in the Summer months very closely.
+
+```{r, echo=FALSE, fig.width=2, fig.height=2}
+
+t.test.arrow.blue(acomo.agg16$Total.Sales, acomo.agg17$Total.Sales)
+
+```
+
+## Visualization of how the AB Test unfolded with each new day for Acomo Jewelry
+
+The range of possible difference between the means narrowed over time but even after 4 months of time the means weren't statistically significant.
+
+```{r, echo=FALSE}
+
+ab.trail(acomo.agg16$Total.Sales, acomo.agg17$Total.Sales)
+
+```
+
+
