@@ -1,5 +1,5 @@
 ---
-title: "Supplier Deep Dive - Firefly"
+title: "Supplier Deep Dive - FIREFLY"
 author: "Allocate Analytics"
 date: "January 26, 2019"
 output: pdf_document
@@ -159,23 +159,27 @@ supp.cy.sum <- sum(supplier.agg.cy$Total.Sales)
 supplier.agg.cy <- mutate(supplier.agg.cy, "Perc.Whole" = round((Total.Sales/supp.cy.sum)*100, 2))
 supplier.agg.cy <- arrange(supplier.agg.cy, desc(Total.Sales))
 
-prod.uniq <- length(unique(data.both$ItemID))
-cat.uniq <- length(unique(data.both$Category))
-dept.uniq <- length(unique(data.both$Department))
+prod.uniq <- length(unique(data.dive$ItemID))
+cat.uniq <- length(unique(data.dive$Category))
+dept.uniq <- length(unique(data.dive$Department))
 ```
 
 
-###This report enables a business to look at their suppliers a couple different ways.  Some of the questions it can help answer are the following:
+###This report provides an in-depth look at sales of products from `r supplier.to.dive`.
 
-*	Are there suppliers generating so little in sales they’re not worth the shelf space, inventory, and communication I’m giving them?
+Included are the following:
 
-*	If I were to get rid of my smallest 50% of suppliers, how much would that represent in sales?
+*	Bar graph of sales from `r supplier.to.dive` by year
 
-*	Which suppliers brought in less this year than the year before?
+*	Line graph of sales from `r supplier.to.dive` by month
 
-*	Which products are selling best for my best suppliers?
+*	Line graph of sales by category
 
-*	Are there certain times of year when a top supplier’s products are selling better?
+*	Tables of sales by category (in dollars and units sold)
+
+*	Bar graph of top `r supplier.to.dive` products comparing sales by year
+
+* Table of sales by product comparing `r cy` with `r py` for top products
 
 Note: this report relies on data from `r as.Date(min(data.clean$Date.Sold, na.rm = TRUE))` to `r as.Date(max(data.clean$Date.Sold, na.rm = TRUE))`. 
 
@@ -199,13 +203,13 @@ if(length(years.incl) == 1){
   all.bar <- ggplot(data = allin.agg, aes(y = Total.Sales, x = factor(Year), fill = factor(Year))) + 
     geom_bar(stat = "identity") + scale_y_continuous(labels = scales::dollar) + 
     scale_fill_manual(name = "Year", values = man.pal) + theme_dark()+
-    labs(x = "Year", y = "Sales", title = "Total Sales from All Suppliers by Year") + 
+    labs(x = "Year", y = "Sales") + 
     theme(legend.position="none")
 
 year1.ts <- all.ts
 
 all.line <- autoplot(all.ts) + autolayer(year1.ts, color = man.pal[1], size = 3) + theme_dark()+ 
-  labs(y = "Sales", title = "Total Sales from All Suppliers by Month") +
+  labs(y = "Sales", title = "Total Sales from Selected Supplier by Month") +
   scale_y_continuous(labels = scales::dollar)
 
 }
@@ -217,14 +221,14 @@ if(length(years.incl) == 2){
   all.bar <- ggplot(data = allin.agg, aes(y = Total.Sales, x = factor(Year), fill = factor(Year))) + 
   geom_bar(stat = "identity") + scale_y_continuous(labels = scales::dollar) + 
   scale_fill_manual(name = "Year", values = man.pal) + theme_dark()+
-  labs(x = "Year", y = "Sales", title = "Total Sales from All Suppliers by Year") + theme(legend.position="none")
+  labs(x = "Year", y = "Sales") + theme(legend.position="none")
 
 
 year1.ts <- window(all.ts, end = c(years.incl[2],1))
 year2.ts <- window(all.ts, start = c(years.incl[2],1))
 all.line <- autoplot(all.ts) + autolayer(year1.ts, color = man.pal[1], size = 3) + 
   autolayer(year2.ts, color = man.pal[2], size = 3) + theme_dark()+ 
-  labs(y = "Sales", title = "Total Sales from All Suppliers by Month") +
+  labs(y = "Sales", title = "Total Sales from Selected Supplier by Month") +
   scale_y_continuous(labels = scales::dollar)
 }
 
@@ -233,7 +237,7 @@ if(length(years.incl) == 3){
 all.bar <- ggplot(data = allin.agg, aes(y = Total.Sales, x = factor(Year), fill = factor(Year))) + 
   geom_bar(stat = "identity") + scale_y_continuous(labels = scales::dollar) + 
   scale_fill_brewer(name = "Year", palette = "RdBu") + theme_dark()+
-  labs(x = "Year", y = "Sales", title = "Total Sales from All Suppliers by Year") + theme(legend.position="none")
+  labs(x = "Year", y = "Sales") + theme(legend.position="none")
 
 man.pal <- c("#ef8a62", "#f7f7f7", "#67a9cf") #manual palette
 year1.ts <- window(all.ts, end = c(years.incl[2],1))
@@ -243,7 +247,7 @@ year3.ts <- window(all.ts, start = c(years.incl[3],1))
 all.line <- autoplot(all.ts) + autolayer(year1.ts, color = man.pal[1], size = 3) + 
   autolayer(year2.ts, color = man.pal[2], size = 3) + 
   autolayer(year3.ts, color = man.pal[3], size = 3) + theme_dark() + 
-  labs(y = "Sales", title = "Total Sales from All Suppliers by Month") +
+  labs(y = "Sales", title = "Total Sales from Selected Supplier by Month") +
   scale_y_continuous(labels = scales::dollar)
 
 }
@@ -254,7 +258,7 @@ if(length(years.incl) == 4){
   all.bar <- ggplot(data = allin.agg, aes(y = Total.Sales, x = factor(Year), fill = factor(Year))) + 
   geom_bar(stat = "identity") + scale_y_continuous(labels = scales::dollar) + 
   scale_fill_brewer(name = "Year", palette = "RdBu") + theme_dark()+
-  labs(x = "Year", y = "Sales", title = "Total Sales from All Suppliers by Year") + theme(legend.position="none")
+  labs(x = "Year", y = "Sales") + theme(legend.position="none")
 
 man.pal <- c("#ca0020", "#f4a582", "#92c5de", "#0571b0") #manual palette
 year1.ts <- window(all.ts, end = c(years.incl[2],1))
@@ -276,7 +280,7 @@ if(length(years.incl) == 5){
   all.bar <- ggplot(data = allin.agg, aes(y = Total.Sales, x = factor(Year), fill = factor(Year))) + 
   geom_bar(stat = "identity") + scale_y_continuous(labels = scales::dollar) + 
   scale_fill_brewer(name = "Year", palette = "RdBu") + theme_dark()+
-  labs(x = "Year", y = "Sales", title = "Total Sales from All Suppliers by Year") + theme(legend.position="none")
+  labs(x = "Year", y = "Sales") + theme(legend.position="none")
 
 man.pal <- c("#ca0020", "#f4a582", "#f7f7f7","#92c5de", "#0571b0") #manual palette
 year1.ts <- window(all.ts, end = c(years.incl[2],1))
@@ -290,7 +294,7 @@ all.line <- autoplot(all.ts) + autolayer(year1.ts, color = man.pal[1], size = 3)
   autolayer(year3.ts, color = man.pal[3], size = 3) + 
   autolayer(year4.ts, color = man.pal[4], size = 3) +
   autolayer(year5.ts, color = man.pal[5], size = 3) + theme_dark()+ 
-  labs(y = "Sales", title = "Total Sales from All Suppliers by Month") +
+  labs(y = "Sales", title = "Total Sales from Selected Supplier by Month") +
   scale_y_continuous(labels = scales::dollar)
 }
 
@@ -301,9 +305,9 @@ all.line <- autoplot(all.ts) + autolayer(year1.ts, color = man.pal[1], size = 3)
 ```
 
 ## Summary
-**For the selected time period there were `r prod.uniq` distinct products (SKUs) sold in `r cat.uniq` categories across `r dept.uniq` departments from `r nrow(supplier.agg.cy)` different suppliers.**
+**For the selected time period there were `r prod.uniq` distinct `r supplier.to.dive`  products (SKUs) sold in `r cat.uniq` categories across `r dept.uniq` department(s).**
 
-## Overview of Sales by Year and by Month for All Suppliers
+## Bar Graph of Sales from `r supplier.to.dive` by Year
 
 ```{r, echo=FALSE}
 print(all.bar)
@@ -311,7 +315,7 @@ print(all.line)
 
 ```
 
-## Jewelry Types
+## Line Graph of Sales by Category
 
 ```{r categories, echo=FALSE}
 cats <- ggplot(cat.agg, aes(x = Year, fill = Category)) +
@@ -359,7 +363,7 @@ kable(cat.kable.unit)
 
 \newpage
 
-## How did individual products sell in `r year(as.Date(max(data.clean$Date.Sold, na.rm = TRUE)))`?
+## How Individual `r supplier.to.dive` Products Sold in `r year(as.Date(max(data.clean$Date.Sold, na.rm = TRUE)))` vs. Prior Years
 
 ```{r, echo=FALSE, fig.height=6}
 product.agg.cy <- rename(product.agg.cy, "Product" = Description)
@@ -400,11 +404,16 @@ g <- ggplot(data = product.agg.top, aes(x = Product.By.Year, fill = factor(Year)
   geom_bar(stat = "identity", aes(y = Total.Sales)) + coord_flip() +
   scale_y_continuous(labels = scales::dollar) +
   scale_fill_brewer(direction = 1, palette = "RdBu", name = "Year") + theme_dark() + 
-  labs(title = "Sales From Top 10 Suppliers By Year", y = "Total Sales", x = "Product By Year") 
+  labs(title = "Sales From Top Products By Year", y = "Total Sales", x = "Product By Year") 
 print(g)
 
+```
+
+
+
+```{r product_kable, echo=FALSE}
 #product kable calcs
-kable.how.many.in.top <- 75
+kable.how.many.in.top <- 100
 product.agg.cy.pretty <- product.merge
 product.agg.cy.pretty$Perc.Whole <- paste0(product.agg.cy.pretty$Perc.Whole, "%")
 product.agg.cy.pretty$Growth <- paste0("$",prettyNum(round(product.agg.cy.pretty$Growth), big.mark = ","))
@@ -428,7 +437,13 @@ if(nrow(product.agg.cy.pretty) < kable.how.many.in.top){
 #} else {
 #  kable.suppliers <- supplier.agg.cy.pretty[1:25,]
 #}
+```
 
+##Table of Sales by Product Comparing `r cy` with `r py` for Top `r kable.how.many.in.top` Products
+
+Note: "Perc.Whole" means what percentage of all `r supplier.to.dive` sales in `r cy` came from this product
+
+```{r, echo=FALSE}
 kable(kable.products)
 ```
 

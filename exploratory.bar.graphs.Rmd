@@ -1,8 +1,10 @@
 ---
-title: "Exploratory Bar Graphs - Whale's Tale"
+title: "Exploratory Bar Graphs - JHarte Client"
 author: "Sam Pritchard"
-date: "December 20, 2017"
-output: html_document
+date: "December 20, 2018"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}

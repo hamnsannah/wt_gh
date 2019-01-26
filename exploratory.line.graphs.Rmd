@@ -11,10 +11,11 @@ require(dplyr)
 require(ggplot2)
 require(lubridate)
 
-data17 <- read.csv("Detailed Sales Report 17.csv", stringsAsFactors = FALSE)
-data16 <- read.csv("Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
+#data17 <- read.csv("Detailed Sales Report 17.csv", stringsAsFactors = FALSE)
+#data16 <- read.csv("Detailed Sales Report 16.csv", stringsAsFactors = FALSE)
 
-data.both <- rbind(data17, data16)
+#data.both <- rbind(data17, data16)
+data.both <- read.csv("C://Users/The Pritchard family/Documents/R/wt_gh/data/data1417.csv", stringsAsFactors = FALSE)
 data.both$Total.Sales <- as.numeric(data.both$Total.Sales)
 data.both <- filter(data.both, !is.na(Total.Sales)) #removes the sums that had $ signs in them
 print(paste("sum of Total.Sales is", sum(data.both$Total.Sales)))
