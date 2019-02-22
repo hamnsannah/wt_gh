@@ -187,7 +187,7 @@ staffing.day.plot.dots <- function(df, nickname.of.time.range){
   library(dplyr)
   library(ggplot2)
   
-  df.agg <- aggregate(Total.Sales ~ Date.Sold.Round + Hour + Weekday, df.all, sum)
+  df.agg <- aggregate(Total.Sales ~ Date.Sold.Round + Hour + Weekday, df, sum)
   conf.df <- data.frame()
   
   for(i in 9:23){
@@ -225,13 +225,14 @@ staffing.day.plot.dots <- function(df, nickname.of.time.range){
   brks.y = seq(0, 2000, 200)
   brks.y2 = seq(0,8,1)
   
+  #removing dots because not based on anything for Splash
   day.plot <- ggplot(data = conf.df, aes(x=hour)) +
     geom_ribbon(aes(ymin=low95, ymax=high95), fill="#0571b0", alpha = .75)+
     geom_ribbon(aes(ymin=low75, ymax=high75), fill="#92c5de", alpha = .75)+
     geom_ribbon(aes(ymin=low50, ymax=high50), fill="#d1e5f0", alpha = .75)+
-    geom_ribbon(aes(ymin=estimate-5, ymax=estimate+5), fill="#ef8a62") +
-    geom_point(aes(y=staff.estimate*200), color="#FFFF33", size = 10) +
-    geom_text(aes(y = staff.estimate*200, label = staff.estimate), color = "black", size = 5, fontface = "bold")
+    geom_ribbon(aes(ymin=estimate-5, ymax=estimate+5), fill="#ef8a62") #+
+    #geom_point(aes(y=staff.estimate*200), color="#FFFF33", size = 10) +
+    #geom_text(aes(y = staff.estimate*200, label = staff.estimate), color = "black", size = 5, fontface = "bold")
   day.plot <- day.plot + scale_x_continuous(labels = lbls, breaks = brks) + 
     scale_y_continuous(sec.axis = sec_axis(~./200, name = "Estimate of Hourly Staff Need", breaks = brks.y2), labels = lbls.y, breaks = brks.y, name = "Range of Hourly Sales") #+ ylim(0,2000)
   #print(head(conf.df, 15))
@@ -330,8 +331,6 @@ staffing.day.plot.dept3.transactions <- function(df, nickname.of.time.range, pal
 
 The next 4 plots show the range of sales that have occurred for each hour of the day.  The darkest, largest blue range represents where sales occur that hour 95% of the time.  The next slightly lighter blue range represents where hourly sales will fall 75%.  The smallest, lightest blue contains hourly sales 50% of the time.  The red ribbon is the average sales level for that hour.
 
-I have left the yellow dots with staffing levels on the plot despite the fact that they're calibrated based on the Whale's Tale staffing levels rather than Splash's.  They can provide a helpful comparison with Whale's Tale data.
-
 In purple is a similar plot based on transactions by hour rather than sales dollars by hour.  The ranges for light purple, medium purple, and dark purple are the same as described above for the blues.
 
 ##### Approximate Staffing Needs At Hourly Sales Levels
@@ -348,39 +347,41 @@ Below are the plots of each profile:
 \newpage
 
 ## #1 Jan-Apr - Grey
+This blue plot is likely affected by a small sample size, but it does point to the fact that bigger purchases seemed to happen "first thing" but still only 1 transaction per hour at that time (based on purple plot)
 
 ```{r Off.Peak.Min, echo=FALSE, warning=FALSE, message=FALSE, fig.height= 4}
 
-df1 <- data2years.wide %>%
-  filter(Date.Sold >= "2016-01-01", Date.Sold <= "2016-04-30")
-df2 <- data2years.wide %>%
-  filter(Date.Sold >= "2017-01-01", Date.Sold <= "2017-04-30")
+df.off.peak <- data2years.wide %>%
+  filter(Date.Sold >= "2018-01-01", Date.Sold <= "2018-04-30")
+#df2 <- data2years.wide %>%
+#  filter(Date.Sold >= "2017-01-01", Date.Sold <= "2017-04-30")
 
-df.all <- rbind(df1, df2)
-staffing.day.plot.dots(df.all)
+#df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.off.peak)
 ```
 
 
 ```{r,echo=FALSE, fig.height= 4}
-staffing.day.plot.dept3.transactions(df.all, "Jan-Apr Transactions", palette.color = "purple.palette")
+staffing.day.plot.dept3.transactions(df.off.peak, "Jan-Apr Transactions", palette.color = "purple.palette")
 ```
 
 \newpage
 
 ## #2 May, Jun, Sep - Green
+If you were to add a second person or have people overlap, the 2-3pm or possibly 1-3pm time period is most likely to have more customers and more dollars.  The dark blue rising higher in the morning means that occasionally there are more sales and customers during that 10-1 period.
 
-```{r Winter.Saturdays, echo=FALSE, message=FALSE, warning=FALSE, fig.height= 4}
+```{r near.peak, echo=FALSE, message=FALSE, warning=FALSE, fig.height= 4}
 
 df1 <- data2years.wide %>%
-  filter(Date.Sold >= "2016-05-01", Date.Sold <= "2016-06-30")
-df2 <- data2years.wide %>%
-  filter(Date.Sold >= "2017-05-01", Date.Sold <= "2017-06-30")
+  filter(Date.Sold >= "2018-05-01", Date.Sold <= "2018-06-30")
+#df2 <- data2years.wide %>%
+#  filter(Date.Sold >= "2017-05-01", Date.Sold <= "2017-06-30")
 df3 <- data2years.wide %>%
-  filter(Date.Sold >= "2016-09-01", Date.Sold <= "2016-09-30")
-df4 <- data2years.wide %>%
-  filter(Date.Sold >= "2017-09-01", Date.Sold <= "2017-09-30")
+  filter(Date.Sold >= "2018-09-01", Date.Sold <= "2018-09-30")
+#df4 <- data2years.wide %>%
+#  filter(Date.Sold >= "2017-09-01", Date.Sold <= "2017-09-30")
 
-df.all <- rbind(df1, df2, df3, df4)
+df.all <- rbind(df1, df3)
 staffing.day.plot.dots(df.all)
 ```
 
@@ -392,40 +393,43 @@ staffing.day.plot.dept3.transactions(df.all, "May, Jun, Sep Transactions", palet
 \newpage
 
 ## #3 Jul-Aug - Blue
+This period provides a similar picture where 2-3pm is the timeframe most likely to have higher sales and more transactions per hour.  Keep in mind that even during that time there are on average only 2 purchases per hour, but that wouldn't account for people browsing and not buying who also need to get their questions answered.
+
 
 ```{r Spring.Fri.Sat.Tan.Mid.ApriltoMay, echo=FALSE, warning=FALSE, fig.height= 4}
 
-df1 <- data2years.wide %>%
-  filter(Date.Sold >= "2016-07-01", Date.Sold <= "2016-08-31")
-df2 <- data2years.wide %>%
-  filter(Date.Sold >= "2017-07-01", Date.Sold <= "2017-08-31")
+df.peak <- data2years.wide %>%
+  filter(Date.Sold >= "2018-07-01", Date.Sold <= "2018-08-31")
+#df2 <- data2years.wide %>%
+#  filter(Date.Sold >= "2017-07-01", Date.Sold <= "2017-08-31")
 
-df.all <- rbind(df1, df2)
-staffing.day.plot.dots(df.all)
+#df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.peak)
 ```
 
 
 ```{r,echo=FALSE, fig.height= 4}
-staffing.day.plot.dept3.transactions(df.all, "Jul-Aug Transactions", palette.color = "purple.palette")
+staffing.day.plot.dept3.transactions(df.peak, "Jul-Aug Transactions", palette.color = "purple.palette")
 ```
 
 \newpage
 
 ## #4 Oct-Dec - Pink
+Sales are typically low during this period but at 6pm and 8pm there are sometimes increases. I don't know whether it would warrant additional staffing but those are the times it's most likely for Splash to be busy during this period.
 
 ```{r Spring.Sundays, echo=FALSE, warning=FALSE, fig.height= 4}
 
-df1 <- data2years.wide %>%
-  filter(Date.Sold >= "2016-10-01", Date.Sold <= "2016-12-31")
-df2 <- data2years.wide %>%
-  filter(Date.Sold >= "2017-10-01", Date.Sold <= "2017-12-31")
+df.q4 <- data2years.wide %>%
+  filter(Date.Sold >= "2018-10-01", Date.Sold <= "2018-12-31")
+#df2 <- data2years.wide %>%
+#  filter(Date.Sold >= "2017-10-01", Date.Sold <= "2017-12-31")
 
-df.all <- rbind(df1, df2)
-staffing.day.plot.dots(df.all)
+#df.all <- rbind(df1, df2)
+staffing.day.plot.dots(df.q4)
 ```
 
 ```{r,echo=FALSE, fig.height= 4}
 
-staffing.day.plot.dept3.transactions(df.all, "Oct-Dec Transactions", palette.color = "purple.palette")
+staffing.day.plot.dept3.transactions(df.q4, "Oct-Dec Transactions", palette.color = "purple.palette")
 ```
 
