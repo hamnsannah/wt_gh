@@ -1,7 +1,7 @@
 ---
 title: "Splash Staffing Analysis - Transactions"
 author: "Allocate Analytics"
-date: "February 21, 2019"
+date: "February 23, 2019"
 output: pdf_document
 ---
 
@@ -116,7 +116,16 @@ data18.plot <- data18.agg %>%
 
 ```
 
-# DISREGARD ALL TEXT
+## Headlines:
+
+* Predicting when it will be busy is harder at Splash than at Whale's Tale.  It tends to be more random, but there are still some times where more transactions per hour or more dollars per hour are more likely.
+
+* To answer the primary question of when Splash is most likely to be busy, the answer is 2-3pm and sometimes 1-3pm.  This would be true from May to September.  In the other months of the year, there's not a clear trend for when it would be busier.
+
+* The next question is whether it's worth it to add staff to capture the extra sales.  A rough calculation of adding another person for 4 hours for 5 months says the added revenue might be $5,000-$9,000 but added compensation might be $7000-$9000.  If there were a way for the shifts to overlap from 1-3 or some similar timeframe, that's most likely to have a positive impact.
+
+* If it were my choice I'd first make sure every worker was as good as they could be serving multiple customers simultaneously.  Next, I'd try to have the shifts overlap by two hours around 1-3, but also have some other productive task the second person could do besides talking to customers when there aren't multiple customers in Splash. 
+
 
 #### Question To Answer: How can sales data help inform staffing levels through the day through each month of the year?
 
@@ -137,13 +146,7 @@ prettify(data18.plot)
 
 ## Comments and Trends
 
-Trends were harder to identify for Splash.  I began by just substituting the Splash data for the Whale's Tale data, but the dollar amounts differed wildly and almost randomly.  I then switched from sales dollars to items sold but that similarly had unpredictable variation.  Lastly, I looked at transaction data.  The transaction data had fewer huge spikes but still the transactions followed almost a random pattern.
-
-I came away thinking that working at the Splash location is a little bit like playing outfield in baseball.  You might get no action for long periods, but you better be ready when the action does come.
-
-There's a risk in analysis like this called overfitting such as saying "The 3rd Saturday in August was huge so next year schedule extra help just for that one day".  I really couldn't find many patterns beyond expected monthly seasonality, but this by itself is a useful finding.  I looked for trends like "Mornings on Weekdays are usually _____", "The final hours of the day are often ______", "the busiest time of day is _____", "the busiest or the lightest day of the week is _____", and none of them led to a solid trend.
-
-In the end, I went with four profiles, as shown in the colors below.  I haven't matched these to staffing levels because I haven't gotten as much info about how Splash is staffed; what the maximum and minimum staffing levels would be, etc.  Still this should provide a useful picture of the possible transaction levels.
+For Splash I divided the year into four profiles, as shown in the colors below.
 
 ## Sales By Hour For Each Day of 2017
 
@@ -329,13 +332,13 @@ staffing.day.plot.dept3.transactions <- function(df, nickname.of.time.range, pal
 
 # Sales Ranges of Profiles
 
-The next 4 plots show the range of sales that have occurred for each hour of the day.  The darkest, largest blue range represents where sales occur that hour 95% of the time.  The next slightly lighter blue range represents where hourly sales will fall 75%.  The smallest, lightest blue contains hourly sales 50% of the time.  The red ribbon is the average sales level for that hour.
+The next plots show the range of sales that have occurred for each hour of the day.  The darkest, largest blue range represents where sales occur that hour 95% of the time.  The next slightly lighter blue range represents where hourly sales will fall 75%.  The smallest, lightest blue contains hourly sales 50% of the time.  The red ribbon is the average sales level for that hour.
 
 In purple is a similar plot based on transactions by hour rather than sales dollars by hour.  The ranges for light purple, medium purple, and dark purple are the same as described above for the blues.
 
-##### Approximate Staffing Needs At Hourly Sales Levels
 
 ```{r staffing.kable, echo=FALSE}
+##### Approximate Staffing Needs At Hourly Sales Levels
 
 staffing.table <- data.frame("Sales Per Hour" = c("$400", "$600", "$800", "$1000", "$1200"), "Staff Needed" = c(2, 3, 4, 5, 6))
 
@@ -370,7 +373,7 @@ staffing.day.plot.dept3.transactions(df.off.peak, "Jan-Apr Transactions", palett
 ## #2 May, Jun, Sep - Green
 If you were to add a second person or have people overlap, the 2-3pm or possibly 1-3pm time period is most likely to have more customers and more dollars.  The dark blue rising higher in the morning means that occasionally there are more sales and customers during that 10-1 period.
 
-```{r near.peak, echo=FALSE, message=FALSE, warning=FALSE, fig.height= 4}
+```{r near.peak, echo=FALSE, message=FALSE, warning=FALSE, fig.height= 3.9}
 
 df1 <- data2years.wide %>%
   filter(Date.Sold >= "2018-05-01", Date.Sold <= "2018-06-30")
@@ -386,7 +389,7 @@ staffing.day.plot.dots(df.all)
 ```
 
 
-```{r,echo=FALSE, fig.height= 4}
+```{r,echo=FALSE, fig.height= 3.9}
 staffing.day.plot.dept3.transactions(df.all, "May, Jun, Sep Transactions", palette.color = "purple.palette")
 ```
 
@@ -396,7 +399,7 @@ staffing.day.plot.dept3.transactions(df.all, "May, Jun, Sep Transactions", palet
 This period provides a similar picture where 2-3pm is the timeframe most likely to have higher sales and more transactions per hour.  Keep in mind that even during that time there are on average only 2 purchases per hour, but that wouldn't account for people browsing and not buying who also need to get their questions answered.
 
 
-```{r Spring.Fri.Sat.Tan.Mid.ApriltoMay, echo=FALSE, warning=FALSE, fig.height= 4}
+```{r Spring.Fri.Sat.Tan.Mid.ApriltoMay, echo=FALSE, warning=FALSE, fig.height= 3.9}
 
 df.peak <- data2years.wide %>%
   filter(Date.Sold >= "2018-07-01", Date.Sold <= "2018-08-31")
@@ -408,7 +411,7 @@ staffing.day.plot.dots(df.peak)
 ```
 
 
-```{r,echo=FALSE, fig.height= 4}
+```{r,echo=FALSE, fig.height= 3.9}
 staffing.day.plot.dept3.transactions(df.peak, "Jul-Aug Transactions", palette.color = "purple.palette")
 ```
 
@@ -417,7 +420,7 @@ staffing.day.plot.dept3.transactions(df.peak, "Jul-Aug Transactions", palette.co
 ## #4 Oct-Dec - Pink
 Sales are typically low during this period but at 6pm and 8pm there are sometimes increases. I don't know whether it would warrant additional staffing but those are the times it's most likely for Splash to be busy during this period.
 
-```{r Spring.Sundays, echo=FALSE, warning=FALSE, fig.height= 4}
+```{r Spring.Sundays, echo=FALSE, warning=FALSE, fig.height= 3.9}
 
 df.q4 <- data2years.wide %>%
   filter(Date.Sold >= "2018-10-01", Date.Sold <= "2018-12-31")
@@ -428,8 +431,20 @@ df.q4 <- data2years.wide %>%
 staffing.day.plot.dots(df.q4)
 ```
 
-```{r,echo=FALSE, fig.height= 4}
+```{r,echo=FALSE, fig.height= 3.9}
 
 staffing.day.plot.dept3.transactions(df.q4, "Oct-Dec Transactions", palette.color = "purple.palette")
 ```
+
+
+
+### Appendix: Details on calculation of more staff compared with more sales
+
+#### Additional sales to be gained
+For the peak and near peak periods, the difference between the top of the darkest blue area and the next darkest blue area, is about $600 for each hour, and it's about a 4 hour period where the dark blue is much higher than the next blue.  The difference between those areas is about a 10% chance. Next, note that these represent a full 60 minutes so it's possible that even on busy times customers could come one after another never simultaneously.  Even if they come at the same time, one employee could serve multiple customers to some extent.  For that reason, I'd calculate the upside as follows
+
+$600 difference x 4 hours x 150 days (May-Sept) x 10% chance of it happening = $36,000, but this isn't the end. Since all the sales don't come at the same time and one worker can server more than one customer per hour, this number can by divided by 2 or 4 for what's still probably a generous upside of $9,000-$18,000
+
+#### Additional compensation
+For compensation, I used 150 days x 4 hours for 600 labor hours times pay rate for the pay.  That could be $7,200 to $9,000 or a wider range depending on the pay rate. If, instead of having the additional person for 4 years, it was only 2 hours from 1-3, the pay calculation would be cut in half.  The upside would be cut by a little less than half, because those 1-3 is more likely to have multiple customers than either 12-1 or 3-4.
 
