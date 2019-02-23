@@ -1,0 +1,238 @@
+---
+title: "Jewelry Order Value at Whale's Tale & Splash"
+author: "Sam Pritchard - Allocate Analytics"
+date: "2/24/2019"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#next fix the text
+
+require(dplyr)
+require(ggplot2)
+require(knitr)
+
+setwd("C://Users/The Pritchard family/Documents/R/wt_gh/")
+
+import.jh.sql.connect <- function(db.name.in.sql.server){
+  library(odbc)
+  library(DBI)
+  
+  con <- DBI::dbConnect(odbc::odbc(),
+                        Driver = "SQL Server",
+                        Server = "LAPTOP-JHRVTF04\\SQLEXPRESS",
+                        Database = db.name.in.sql.server,
+                        Trusted_Connection = "True")
+  con
+}
+
+import.jh.detailed.sales <- function(){
+  joined.df <- DBI::dbGetQuery(con,'
+                                SELECT TransactionEntry.ItemID, TransactionEntry.Price, 
+                                 TransactionEntry.TransactionTime, TransactionEntry.Quantity, 
+                                  TransactionEntry.TransactionNumber, Item.Description, 
+                                 Department.Name AS "Department", Category.Name AS "Category", 
+                                 SupplierName AS "Supplier", Cashier.Name AS "CashierName", 
+                                 Register.Number AS "Register", Register.Description AS "RegLocation"
+
+                                 FROM TransactionEntry
+                                 
+                                 JOIN Item ON TransactionEntry.ItemID = Item.ID
+                                 JOIN Department ON Item.DepartmentID = Department.ID
+                                 JOIN Category ON Item.CategoryID = Category.ID
+                                 JOIN Supplier ON Item.SupplierID = Supplier.ID
+                                 JOIN [Transaction] ON TransactionEntry.TransactionNumber = [Transaction].TransactionNumber
+                                 JOIN Batch ON [Transaction].BatchNumber = Batch.BatchNumber
+                                 JOIN Register ON Batch.RegisterID = Register.ID
+                                 JOIN Cashier ON [Transaction].CashierID = Cashier.ID')
+  joined.df
+  }
+
+clean.jh.detailed.sales <- function(sql.df){
+  library(dplyr)
+  library(lubridate)
+    
+    sql.df <- sql.df %>%
+      rename(Sold.Price = Price, Cashier = CashierName, Date.Sold = TransactionTime,
+             Qty.Sold = Quantity, Transaction = TransactionNumber) %>%
+      mutate(Total.Sales = Qty.Sold*Sold.Price) %>%
+      select(Department, Category, Supplier, ItemID, Description, Qty.Sold, Sold.Price, 
+             Total.Sales, Transaction, Date.Sold, Register, Cashier)
+    
+    sql.df$Date.Sold <- ymd_hms(sql.df$Date.Sold)
+    sql.df$Year <- year(sql.df$Date.Sold)
+    sql.df$Month <- month(sql.df$Date.Sold)
+    sql.df$Department <- trimws(sql.df$Department)
+    sql.df$Category <- trimws(sql.df$Category)
+    sql.df$Supplier <- trimws(sql.df$Supplier)
+    sql.df$Item <- trimws(sql.df$Item)
+    #print(head(sql.df))
+    sql.df$Dept.By.Year <- paste(sql.df$Department, sql.df$Year)
+    sql.df$Categ.By.Year <- paste(sql.df$Category, sql.df$Year)
+    sql.df
+}
+
+if(file.exists(paste0("data/sales.data.cache", Sys.Date(), ".csv"))){
+  data.clean <- read.csv(paste0("data/sales.data.cache", Sys.Date(), ".csv"), stringsAsFactor = FALSE)
+} else {
+con <- import.jh.sql.connect("WHALESTALE")
+
+new.df <- import.jh.detailed.sales() # uses con but not as argument
+
+data.clean <- clean.jh.detailed.sales(new.df)
+
+write.csv(data.clean, paste0("data/sales.data.cache", Sys.Date(), ".csv"), row.names = FALSE)
+}
+
+wt.jewel <- filter(data.clean, Department == "JEWELRY", Register != 9)
+splash.jewel <- filter(data.clean, Department == "JEWELRY", Register == 9)
+
+#read in data
+#mutated.four.years <- read.csv("mutated.data1417.csv", stringsAsFactors = FALSE)
+#mutated.four.years <- read.csv("/srv/shiny-server/ab-trail/mutated.data1417.csv", stringsAsFactors = FALSE)
+
+#read in functions
+cart.mean.all <- function(dataset){
+  require(ggplot2)
+  require(dplyr)
+  #require(xts)
+  require(lubridate)
+  require(scales)
+  
+  dataset$row.count = 1
+  dataset <- dataset %>%
+    mutate("Year.Mo" = as_date(paste(substr(Date.Sold, 1,7),"-01"),ymd))
+  data.agg <- aggregate(Total.Sales ~ Transaction + Year.Mo, dataset, sum)
+  data.mean <- aggregate(Total.Sales ~ Year.Mo, data.agg, mean)
+
+  #print(head(dataset))
+  data.item.agg <- aggregate(row.count ~ Transaction + Year.Mo, dataset, length)
+  data.length <- aggregate(row.count ~ Year.Mo, data.item.agg, mean)
+  #print(data.length)
+  data.length$row.count <- as.numeric(data.length$row.count)
+  data.cols <- merge(data.mean, data.length)
+  data.cols$Item.Value <- data.cols$Total.Sales/data.cols$row.count
+  #print(data.cols)
+  cart <- ggplot(data = data.cols, aes(x=Year.Mo, group = 1)) + geom_line(aes(y=Total.Sales), color = "purple", size = 2) + 
+    geom_line(aes(y=row.count*5.56), color = "red", size = 2) + geom_line(aes(y=Item.Value), color = "blue", size = 2) + 
+    scale_y_continuous(labels = dollar, sec.axis = sec_axis(~./5.56, name = "Number of Items Purchased"), limits = c(0, NA)) +
+    labs(y = "$ of Avg Cart Size & Item Size", x = "Years By Month", title= "4 Years of Cart Sizes & Components")
+
+  cart
+}
+
+cart.mean <- function(dataset){
+  require(ggplot2)
+  data.agg <- aggregate(Total.Sales ~ Transaction + Month, dataset, sum)
+  data.mean <- aggregate(Total.Sales ~ Month, data.agg, mean)
+  #print(head(data.mean, 12))
+  data.mean$Month <- as.factor(data.mean$Month)
+  cart <- ggplot(data = data.mean, aes(x=Month, y=Total.Sales)) + geom_line()
+  cart
+}
+
+cart.hist <- function(dataset){
+  require(ggplot2)
+  require(plotly)
+  data.agg <- aggregate(Total.Sales ~ Transaction + Month, dataset, sum)
+  
+  gg.hist <- ggplot(data = data.agg, aes(Total.Sales)) + geom_histogram(binwidth = 5, color = "grey", fill = "blue")
+  gg.hist <- gg.hist + xlim(0, 120) + theme_dark()
+  #plotly.hist <- ggplotly(gg.hist)
+  #plotly.hist
+  gg.hist
+}
+
+cart.items <- function(dataset){
+  require(ggplot2)
+  dataset$row.count = 1
+  data.agg <- aggregate(row.count ~ Transaction + Month, dataset, length)
+  data.length <- aggregate(row.count ~ Month, data.agg, mean)
+  
+  print(head(data.agg))
+  print(data.length)
+}
+
+item.hist <- function(dataset){
+  require(ggplot2)
+  require(plotly)
+  #data.agg <- aggregate(Total.Sales ~ Transaction + Month, dataset, sum)
+  
+  gg.hist <- ggplot(data = dataset, aes(Total.Sales)) + geom_histogram(binwidth = 25, color = "grey", fill = "blue")
+  gg.hist <- gg.hist + xlim(0, 500) + theme_dark()
+  #plotly.hist <- ggplotly(gg.hist)
+  #plotly.hist
+  gg.hist
+}
+
+aov.kable <- function(dataset.a, dataset.b, threshold = 150, name.a = "Whale's Tale", name.b = "Splash"){
+  mean.a <- paste0("$",round(mean(dataset.a$Total.Sales),2))
+  over.thresh.a <- filter(dataset.a, Total.Sales >= threshold)
+  under.thresh.a <- filter(dataset.a, Total.Sales < threshold)
+  over.perc.a <- paste0(round((nrow(over.thresh.a)/nrow(dataset.a))*100,1),"%")
+  under.perc.a <- paste0(round((nrow(under.thresh.a)/nrow(dataset.a))*100,1),"%")
+  over.perc.dollar.a <- paste0(round((sum(over.thresh.a$Total.Sales)/sum(dataset.a$Total.Sales))*100,1),"%")
+  under.perc.dollar.a <- paste0(round((sum(under.thresh.a$Total.Sales)/sum(dataset.a$Total.Sales))*100,1),"%")
+  
+  mean.b <- paste0("$",round(mean(dataset.b$Total.Sales),2))
+  over.thresh.b <- filter(dataset.b, Total.Sales >= threshold)
+  under.thresh.b <- filter(dataset.b, Total.Sales < threshold)
+  over.perc.b <- paste0(round((nrow(over.thresh.b)/nrow(dataset.b))*100,1),"%")
+  under.perc.b <- paste0(round((nrow(under.thresh.b)/nrow(dataset.b))*100,1),"%")
+  over.perc.dollar.b <- paste0(round((sum(over.thresh.b$Total.Sales)/sum(dataset.b$Total.Sales))*100,1),"%")
+  under.perc.dollar.b <- paste0(round((sum(under.thresh.b$Total.Sales)/sum(dataset.b$Total.Sales))*100,1),"%")
+  
+  
+aov.table <- data.frame("Store" = c(name.a, name.b),"Avg Price" = c(mean.a, mean.b), "Trans Over" = c(over.perc.a, over.perc.b),
+                        "Trans Under" = c(under.perc.a, under.perc.b), "$ Over" = c(over.perc.dollar.a, over.perc.dollar.b), 
+                        "$ Under" = c(under.perc.dollar.a, under.perc.dollar.b))  
+colnames(aov.table) <- c("Store", "Avg Price", "Trans Over", "Trans Under", "$ Over", "$ Under")
+kable(aov.table)
+
+}
+```
+
+## Headline:
+### Cart size generally increases through the year with December being the highest most years and January/February being the lowest most years.  The change is driven more by customers buying products that have a higher average price rather than by buying more items per transaction
+
+The chart shows 3 variables.  The purple one on top represents the Cart Size or Average Order Value.  The blue and red further below are Average Unit Retail (average value of one item purchased) and Units Per Transaction, respectively.  The Average Unit Retail times the Units Per Transaction = the Cart Size.  Using Jan 2017 as an example, if the average product purchased is about $10 and customers on average bought 2.5 products per transaction then the Average Order Value (AOV) would be $25 ($10 x 2.5 = $25).  Note that the purple and blue lines use the scale on the left side: the dollars.  The red line uses the scale on the right side: number of items purchased.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+#print(dim(mutated.four.years))
+
+#cart.mean.all(mutated.four.years)
+aov.kable(wt.jewel, splash.jewel)
+item.hist(wt.jewel)
+item.hist(splash.jewel)
+```
+
+
+Most often these metrics are described based on their average, but there is also value in looking at the full distribution of transactions.  This shows that there are customers at all levels of AOV, and the most customers are buying small price point items, but some are making much larger transactions as well.
+
+## Number of Transactions at Different Cart Sizes in $5 Increments
+
+### First bar shows number of transactions between $0.01 and $5 over the last 4 years.  The second bar is $5.01 to $10.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#cart.hist(mutated.four.years)
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+#cart.items(mutated.four.years)
+```
+
+Some ideas for using Cart Size for business growth include:
+
+- Figure out your "milk and eggs" products.  Just as grocery stores put milk and eggs in the back hoping customers will find more they need along the way, look at which products sell with the greatest frequency and place them where they'll have to be sought out.
+
+- Explore different "add-on" products at the cash register in a way that still fits the customer experience you're striving for.
+
+- Experiment with higher prices or lower prices/discounts with some of the most frequently purchased products in order to raise the Average Unit Retail or incentivize customers to return more frequently.

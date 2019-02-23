@@ -8,6 +8,10 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
+#####
+# in the end, I used prelim.splash.staffing.transactions19.Rmd as the main doc.  Though this has some value in the exploratory component, specifically the decomposition
+
+
 library(dplyr)
 library(ggplot2)
 library(sugrrants)
