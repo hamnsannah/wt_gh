@@ -1,5 +1,5 @@
 ---
-title: "Splash Staffing Analysis - Transactions"
+title: "Splash Staffing Analysis - Dollars & Transactions"
 author: "Allocate Analytics"
 date: "February 23, 2019"
 output: pdf_document
@@ -122,7 +122,7 @@ data18.plot <- data18.agg %>%
 
 * To answer the primary question of when Splash is most likely to be busy, the answer is 2-3pm and sometimes 1-3pm.  This would be true from May to September.  In the other months of the year, there's not a clear trend for when it would be busier.
 
-* The next question is whether it's worth it to add staff to capture the extra sales.  A rough calculation of adding another person for 4 hours for 5 months says the added revenue might be $5,000-$9,000 but added compensation might be $7000-$9000.  If there were a way for the shifts to overlap from 1-3 or some similar timeframe, that's most likely to have a positive impact.
+* The next question is whether it's worth it to add staff to capture the extra sales.  A rough calculation of adding another person for 4 hours every day for 5 months project that the added revenue might be $5,000-$9,000 but added compensation might be $7000-$9000.  If there were a way for the shifts to overlap from 1-3 or some similar timeframe, that's most likely to have a positive impact.
 
 * If it were my choice I'd first make sure every worker was as good as they could be serving multiple customers simultaneously.  Next, I'd try to have the shifts overlap by two hours around 1-3, but also have some other productive task the second person could do besides talking to customers when there aren't multiple customers in Splash. 
 
@@ -131,7 +131,7 @@ data18.plot <- data18.agg %>%
 
 #### Approach To Answer Question:
 
-1. Visualize 2017 sales by hour for each day of the year in order to see trends (also visualize 2016 to confirm it's fairly similar to 2017)
+1. Visualize 2018 sales by hour for each day of the year in order to see trends (also visualize 2017 to confirm it's fairly similar to 2018)
 
 2. Group together similar days into a number of "sales profiles" for consistency and simplicity.
 
@@ -328,6 +328,8 @@ staffing.day.plot.dept3.transactions <- function(df, nickname.of.time.range, pal
 
 !["Days of 2017 sorted into 4 profiles for staffing"](splash.staffing.profiles.png)
 
+These color categories were built on 2017 data, and the categories were still applicable in 2018 because, 2018 numbers largely followed the shape of 2017.
+
 \newpage
 
 # Sales Ranges of Profiles
@@ -373,7 +375,7 @@ staffing.day.plot.dept3.transactions(df.off.peak, "Jan-Apr Transactions", palett
 ## #2 May, Jun, Sep - Green
 If you were to add a second person or have people overlap, the 2-3pm or possibly 1-3pm time period is most likely to have more customers and more dollars.  The dark blue rising higher in the morning means that occasionally there are more sales and customers during that 10-1 period.
 
-```{r near.peak, echo=FALSE, message=FALSE, warning=FALSE, fig.height= 3.9}
+```{r near.peak, echo=FALSE, message=FALSE, warning=FALSE, fig.height= 3.8}
 
 df1 <- data2years.wide %>%
   filter(Date.Sold >= "2018-05-01", Date.Sold <= "2018-06-30")
@@ -389,7 +391,7 @@ staffing.day.plot.dots(df.all)
 ```
 
 
-```{r,echo=FALSE, fig.height= 3.9}
+```{r,echo=FALSE, fig.height= 3.8}
 staffing.day.plot.dept3.transactions(df.all, "May, Jun, Sep Transactions", palette.color = "purple.palette")
 ```
 
@@ -399,7 +401,7 @@ staffing.day.plot.dept3.transactions(df.all, "May, Jun, Sep Transactions", palet
 This period provides a similar picture where 2-3pm is the timeframe most likely to have higher sales and more transactions per hour.  Keep in mind that even during that time there are on average only 2 purchases per hour, but that wouldn't account for people browsing and not buying who also need to get their questions answered.
 
 
-```{r Spring.Fri.Sat.Tan.Mid.ApriltoMay, echo=FALSE, warning=FALSE, fig.height= 3.9}
+```{r Spring.Fri.Sat.Tan.Mid.ApriltoMay, echo=FALSE, warning=FALSE, fig.height= 3.8}
 
 df.peak <- data2years.wide %>%
   filter(Date.Sold >= "2018-07-01", Date.Sold <= "2018-08-31")
@@ -411,7 +413,7 @@ staffing.day.plot.dots(df.peak)
 ```
 
 
-```{r,echo=FALSE, fig.height= 3.9}
+```{r,echo=FALSE, fig.height= 3.8}
 staffing.day.plot.dept3.transactions(df.peak, "Jul-Aug Transactions", palette.color = "purple.palette")
 ```
 
@@ -420,7 +422,7 @@ staffing.day.plot.dept3.transactions(df.peak, "Jul-Aug Transactions", palette.co
 ## #4 Oct-Dec - Pink
 Sales are typically low during this period but at 6pm and 8pm there are sometimes increases. I don't know whether it would warrant additional staffing but those are the times it's most likely for Splash to be busy during this period.
 
-```{r Spring.Sundays, echo=FALSE, warning=FALSE, fig.height= 3.9}
+```{r Spring.Sundays, echo=FALSE, warning=FALSE, fig.height= 3.8}
 
 df.q4 <- data2years.wide %>%
   filter(Date.Sold >= "2018-10-01", Date.Sold <= "2018-12-31")
@@ -431,7 +433,7 @@ df.q4 <- data2years.wide %>%
 staffing.day.plot.dots(df.q4)
 ```
 
-```{r,echo=FALSE, fig.height= 3.9}
+```{r,echo=FALSE, fig.height= 3.8}
 
 staffing.day.plot.dept3.transactions(df.q4, "Oct-Dec Transactions", palette.color = "purple.palette")
 ```
