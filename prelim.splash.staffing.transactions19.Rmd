@@ -8,10 +8,6 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
-#SPLASH
-# next step is try to look for trends
-# are there staffing changes to be made or will it always be same #
-
 library(dplyr)
 library(ggplot2)
 library(sugrrants)
