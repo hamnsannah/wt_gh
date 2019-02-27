@@ -1,7 +1,7 @@
 ---
 title: "Jewelry Order Value at Whale's Tale & Splash"
 author: "Sam Pritchard - Allocate Analytics"
-date: "2/24/2019"
+date: "February 24, 2019"
 output:
   pdf_document: default
   html_document:
@@ -16,6 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 require(dplyr)
 require(ggplot2)
 require(knitr)
+require(ggridges)
 
 setwd("C://Users/The Pritchard family/Documents/R/wt_gh/")
 
@@ -162,12 +163,28 @@ item.hist <- function(dataset){
   require(ggplot2)
   require(plotly)
   #data.agg <- aggregate(Total.Sales ~ Transaction + Month, dataset, sum)
-  
-  gg.hist <- ggplot(data = dataset, aes(Total.Sales)) + geom_histogram(binwidth = 25, color = "grey", fill = "blue")
-  gg.hist <- gg.hist + xlim(0, 500) + theme_dark()
+  #92c5de
+  #0571b0#f4a582
+  gg.hist <- ggplot(data = dataset, aes(Total.Sales)) + geom_histogram(binwidth = 25, color = "black", fill = "#92c5de")
+  gg.hist <- gg.hist + xlim(0, 500) + theme_dark() + labs(x = "Price Point of Jewelry Item", y = "Jewelry Items Sold in 2018")
   #plotly.hist <- ggplotly(gg.hist)
   #plotly.hist
   gg.hist
+}
+
+item.ridges <- function(dataset.a, dataset.b, name.a = "Whale's Tale", name.b = "Splash"){
+  dataset.a <- cbind(dataset.a, "Store" = name.a)
+  dataset.b <- cbind(dataset.b, "Store" = name.b)
+  dataset.all <- rbind(dataset.b, dataset.a)
+  dataset.all <- filter(dataset.all, Total.Sales >0, Total.Sales <= 500)
+  
+  ggcompare <- ggplot(data = dataset.all, aes(x = Total.Sales, y = Store, fill = Store)) + 
+    geom_density_ridges() + scale_fill_manual(values = c("#f4a582","#92c5de")) + 
+    scale_x_continuous(labels = scales::dollar) + 
+    labs(x = "Price Point of Jewelry Item", y = "Jewelry Items Sold in 2018") + theme_dark()
+  ggcompare
+  #print(head(dataset.a))
+  #print(head(dataset.b))
 }
 
 aov.kable <- function(dataset.a, dataset.b, threshold = 150, name.a = "Whale's Tale", name.b = "Splash"){
@@ -207,6 +224,7 @@ The chart shows 3 variables.  The purple one on top represents the Cart Size or 
 
 #cart.mean.all(mutated.four.years)
 aov.kable(wt.jewel, splash.jewel)
+item.ridges(wt.jewel, splash.jewel)
 item.hist(wt.jewel)
 item.hist(splash.jewel)
 ```
