@@ -90,6 +90,7 @@ data.clean <- clean.jh.detailed.sales(new.df)
 write.csv(data.clean, paste0("data/sales.data.cache", Sys.Date(), ".csv"), row.names = FALSE)
 }
 
+data.clean <- filter(data.clean, Year == 2018)
 wt.jewel <- filter(data.clean, Department == "JEWELRY", Register != 9)
 splash.jewel <- filter(data.clean, Department == "JEWELRY", Register == 9)
 
@@ -215,42 +216,36 @@ kable(aov.table)
 ```
 
 ## Headline:
-### Cart size generally increases through the year with December being the highest most years and January/February being the lowest most years.  The change is driven more by customers buying products that have a higher average price rather than by buying more items per transaction
+### The hypothesis that higher priced jewelry (over $150) doesn't sell very often at Whale's Tale is largely true.  Of the jewelry pieces that sold at Whale's Tale in 2018, only 2.7% had a price at $150 or more compared with 18.8% at Splash.  The percentage is higher measured by dollars: 13.3% of the jewelry dollars at Whale's Tale came from pieces over $150 while 49.6% of Splash jewelry dollars came from pieces at or over $150.
 
-The chart shows 3 variables.  The purple one on top represents the Cart Size or Average Order Value.  The blue and red further below are Average Unit Retail (average value of one item purchased) and Units Per Transaction, respectively.  The Average Unit Retail times the Units Per Transaction = the Cart Size.  Using Jan 2017 as an example, if the average product purchased is about $10 and customers on average bought 2.5 products per transaction then the Average Order Value (AOV) would be $25 ($10 x 2.5 = $25).  Note that the purple and blue lines use the scale on the left side: the dollars.  The red line uses the scale on the right side: number of items purchased.
+The table below includes the numbers mentioned above plus the average price of jewelry sold at each store.
+
+The plots illustrate the price points of jewelry sold at each store.  The first one shows both stores side-by-side for easy comparison.
+
+The later ones with light blue bars shows one store at a time and break up the categories more cleanly.
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 #print(dim(mutated.four.years))
 
 #cart.mean.all(mutated.four.years)
 aov.kable(wt.jewel, splash.jewel)
+```
+
+## Comparison of Jewelry Order Value at Whale's Tale and Splash
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=4}
 item.ridges(wt.jewel, splash.jewel)
+```
+
+## Jewelry Order Value at Whale's Tale in $25 Increments
+Note: The bar directly above a number covers from that number to $25 less.  For example the bar directly over $100 covers $75-$100
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.5, fig.width=6}
 item.hist(wt.jewel)
+```
+
+## Jewelry Order Value at Splash in $25 Increments
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, fig.height=3.5, fig.width=6}
 item.hist(splash.jewel)
 ```
 
-
-Most often these metrics are described based on their average, but there is also value in looking at the full distribution of transactions.  This shows that there are customers at all levels of AOV, and the most customers are buying small price point items, but some are making much larger transactions as well.
-
-## Number of Transactions at Different Cart Sizes in $5 Increments
-
-### First bar shows number of transactions between $0.01 and $5 over the last 4 years.  The second bar is $5.01 to $10.
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-
-#cart.hist(mutated.four.years)
-```
-
-
-```{r, echo=FALSE, message=FALSE, warning=FALSE}
-
-#cart.items(mutated.four.years)
-```
-
-Some ideas for using Cart Size for business growth include:
-
-- Figure out your "milk and eggs" products.  Just as grocery stores put milk and eggs in the back hoping customers will find more they need along the way, look at which products sell with the greatest frequency and place them where they'll have to be sought out.
-
-- Explore different "add-on" products at the cash register in a way that still fits the customer experience you're striving for.
-
-- Experiment with higher prices or lower prices/discounts with some of the most frequently purchased products in order to raise the Average Unit Retail or incentivize customers to return more frequently.
